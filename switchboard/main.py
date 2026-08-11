@@ -279,6 +279,17 @@ def select_segment(seg_id: int):
     return {"selected_id": engine.selected_id}
 
 
+@app.post("/api/test-led/{led}")
+def toggle_test_led(led: int):
+    """Enciende/apaga en azul un LED individual para probar posiciones físicas."""
+    if not engine.test_mode:
+        raise HTTPException(400, "activa el modo test primero")
+    if not 1 <= led <= strip.count:
+        raise HTTPException(400, f"LED fuera de rango (1-{strip.count})")
+    engine.toggle_test_led(led)
+    return {"test_leds": sorted(engine.test_leds)}
+
+
 @app.post("/api/modbus/write")
 async def modbus_write(req: RegisterWrite):
     """Escritura directa de un registro (para pruebas / simulación de estados del PLC)."""

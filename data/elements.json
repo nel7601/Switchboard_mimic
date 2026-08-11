@@ -1,5 +1,5 @@
 {
-  "last_id": 11,
+  "last_id": 12,
   "elements": [
     {
       "name": "Incom A",
@@ -121,6 +121,17 @@
         "address": 154
       },
       "id": 11
+    },
+    {
+      "name": "Load",
+      "type": "Load",
+      "modbus": {
+        "host": "127.0.0.1",
+        "port": 502,
+        "unit": 1,
+        "address": 0
+      },
+      "id": 12
     }
   ]
 }

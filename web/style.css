@@ -75,6 +75,13 @@ h2 small { font-weight: normal; font-size: .8rem; }
   font-size: .55rem;
   color: #667;
 }
+.strip.testing .led {
+  cursor: pointer;
+  border-color: #2c68c9;
+}
+.strip.testing .led:hover {
+  box-shadow: 0 0 6px #2c68c9;
+}
 
 /* --- tabla --- */
 table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }

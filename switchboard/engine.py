@@ -38,6 +38,7 @@ class MimicEngine:
         self._interval = poll_interval_s
         self.test_mode = False
         self.selected_id: Optional[int] = None
+        self.test_leds: set = set()  # LEDs encendidos a mano en modo test (base 1)
         self.resolved: list[dict] = []  # última tabla con colores
         self.modbus_ok: Optional[bool] = None
         self.on_update: Optional[Callable] = None  # callback para el websocket
@@ -116,13 +117,17 @@ class MimicEngine:
             for led in range(lo, hi + 1):
                 if 1 <= led <= self.strip.count:
                     pixels[led - 1] = rgb
-        if self.test_mode and self.selected_id is not None:
-            sel = self.store.get(self.selected_id)
-            if sel:
-                lo, hi = min(sel["start"], sel["end"]), max(sel["start"], sel["end"])
-                for led in range(lo, hi + 1):
-                    if 1 <= led <= self.strip.count:
-                        pixels[led - 1] = COLOR_RGB["Blue"]
+        if self.test_mode:
+            if self.selected_id is not None:
+                sel = self.store.get(self.selected_id)
+                if sel:
+                    lo, hi = min(sel["start"], sel["end"]), max(sel["start"], sel["end"])
+                    for led in range(lo, hi + 1):
+                        if 1 <= led <= self.strip.count:
+                            pixels[led - 1] = COLOR_RGB["Blue"]
+            for led in self.test_leds:
+                if 1 <= led <= self.strip.count:
+                    pixels[led - 1] = COLOR_RGB["Blue"]
         self.strip.render(pixels)
 
     # ---------- interacción desde la API ----------
@@ -131,6 +136,16 @@ class MimicEngine:
         self.test_mode = enabled
         if not enabled:
             self.selected_id = None
+            self.test_leds.clear()
+        self._paint()
+        self._notify()
+
+    def toggle_test_led(self, led: int):
+        """Enciende/apaga en azul un LED individual (solo en modo test)."""
+        if led in self.test_leds:
+            self.test_leds.discard(led)
+        else:
+            self.test_leds.add(led)
         self._paint()
         self._notify()
 
@@ -143,6 +158,7 @@ class MimicEngine:
         return {
             "test_mode": self.test_mode,
             "selected_id": self.selected_id,
+            "test_leds": sorted(self.test_leds),
             "modbus_ok": self.modbus_ok,
             "segments": self.resolved,
             "pixels": self.strip.pixels,
