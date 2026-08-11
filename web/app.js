@@ -9,6 +9,8 @@ let segments = [];
 let elements = [];
 let selectedId = null;
 let testMode = false;
+let activeStrip = 1;
+let stripCount = 1;
 
 const $ = (id) => document.getElementById(id);
 
@@ -46,10 +48,11 @@ function setBadge(id, text, cls) {
 
 function applyState(state) {
   testMode = state.test_mode;
+  stripCount = state.strips.length;
   $('strips').classList.toggle('testing', testMode);
   $('test-hint').hidden = !testMode;
+  renderTabs();
   renderStrips(state.strips);
-  fillStripSelect(state.strips.length);
   if (state.modbus_ok === null) setBadge('modbus-badge', 'Modbus: —');
   else if (state.modbus_ok) setBadge('modbus-badge', 'Modbus: OK', 'ok');
   else setBadge('modbus-badge', 'Modbus: error', 'err');
@@ -65,6 +68,33 @@ function applyState(state) {
 
 /* ---------- tira LED ---------- */
 
+function renderTabs() {
+  const bar = $('strip-tabs');
+  if (bar.childElementCount === stripCount || stripCount < 2) {
+    if (stripCount < 2) bar.innerHTML = '';
+    return;
+  }
+  bar.innerHTML = '';
+  for (let n = 1; n <= stripCount; n++) {
+    const btn = document.createElement('button');
+    btn.textContent = `Tira ${n}`;
+    btn.classList.toggle('active', n === activeStrip);
+    btn.onclick = () => switchStrip(n);
+    bar.appendChild(btn);
+  }
+}
+
+function switchStrip(n) {
+  if (n === activeStrip) return;
+  activeStrip = n;
+  [...$('strip-tabs').children].forEach((btn, i) =>
+    btn.classList.toggle('active', i + 1 === n));
+  [...$('strips').children].forEach((block, i) => {
+    block.style.display = i + 1 === n ? '' : 'none';
+  });
+  dismiss(); // la selección pertenecía a la otra tira
+}
+
 function renderStrips(strips) {
   const container = $('strips');
   // reconstruir si cambió el nº de tiras o el nº de LEDs de alguna
@@ -79,11 +109,6 @@ function renderStrips(strips) {
     strips.forEach((s, idx) => {
       const block = document.createElement('div');
       block.className = 'strip-block';
-      if (strips.length > 1) {
-        const label = document.createElement('h3');
-        label.textContent = `Tira ${idx + 1}`;
-        block.appendChild(label);
-      }
       const row = document.createElement('div');
       row.className = 'strip';
       s.pixels.forEach((_, i) => {
@@ -101,7 +126,9 @@ function renderStrips(strips) {
     });
   }
   strips.forEach((s, idx) => {
-    const row = container.children[idx].querySelector('.strip');
+    const block = container.children[idx];
+    block.style.display = idx + 1 === activeStrip ? '' : 'none';
+    const row = block.querySelector('.strip');
     [...row.children].forEach((led, i) => {
       const [r, g, b] = s.pixels[i];
       led.style.background = `rgb(${r},${g},${b})`;
@@ -113,15 +140,6 @@ function renderStrips(strips) {
         : `LED ${i + 1}`;
     });
   });
-}
-
-function fillStripSelect(count) {
-  const sel = $('f-strip');
-  if (sel.options.length === count) return;
-  const current = sel.value;
-  sel.innerHTML = Array.from({ length: count }, (_, i) =>
-    `<option value="${i + 1}">Tira ${i + 1}</option>`).join('');
-  if (current && Number(current) <= count) sel.value = current;
 }
 
 /* ---------- tabla ---------- */
@@ -146,12 +164,13 @@ function renderTable() {
   const tbody = document.querySelector('#segments-table tbody');
   tbody.innerHTML = '';
   for (const seg of segments) {
+    if (seg.strip !== activeStrip) continue; // cada tab muestra su tira
     const elem = elementById(seg.element_id);
     const tr = document.createElement('tr');
     tr.dataset.id = seg.id;
     if (seg.id === selectedId) tr.classList.add('selected');
     tr.innerHTML = `
-      <td>${seg.id}</td><td>${seg.strip}</td><td>${seg.start}</td><td>${seg.end}</td>
+      <td>${seg.id}</td><td>${seg.start}</td><td>${seg.end}</td>
       <td>${elem ? escapeHtml(elem.name) : '—'}</td>
       <td>${elem ? escapeHtml(elem.type) : '—'}</td>
       <td><span class="chip"></span></td>`;
@@ -163,7 +182,6 @@ function renderTable() {
 async function selectRow(seg) {
   selectedId = seg.id;
   $('f-id').value = seg.id;
-  $('f-strip').value = seg.strip;
   $('f-start').value = seg.start;
   $('f-end').value = seg.end;
   $('f-element').value = seg.element_id;
@@ -184,7 +202,7 @@ function dismiss() {
 
 function formPayload() {
   return {
-    strip: Number($('f-strip').value) || 1,
+    strip: activeStrip,
     start: Number($('f-start').value),
     end: Number($('f-end').value),
     element_id: Number($('f-element').value),
@@ -225,7 +243,7 @@ $('btn-delete').onclick = async () => {
 $('btn-dismiss').onclick = dismiss;
 
 $('btn-clear').onclick = async () => {
-  if (!confirm('¿Vaciar toda la tabla de segmentos?')) return;
+  if (!confirm('¿Vaciar toda la tabla de segmentos (todas las tiras)?')) return;
   await fetch('/api/segments', { method: 'DELETE' });
   dismiss();
   await loadSegments();
