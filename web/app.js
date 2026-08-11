@@ -243,8 +243,8 @@ $('btn-delete').onclick = async () => {
 $('btn-dismiss').onclick = dismiss;
 
 $('btn-clear').onclick = async () => {
-  if (!confirm('¿Vaciar toda la tabla de segmentos (todas las tiras)?')) return;
-  await fetch('/api/segments', { method: 'DELETE' });
+  if (!confirm(`¿Vaciar la tabla de la tira ${activeStrip}?`)) return;
+  await fetch(`/api/segments?strip=${activeStrip}`, { method: 'DELETE' });
   dismiss();
   await loadSegments();
 };

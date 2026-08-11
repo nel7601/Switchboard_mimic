@@ -166,8 +166,11 @@ async def delete_segment(seg_id: int):
 
 
 @app.delete("/api/segments")
-async def clear_segments():
-    store.clear()
+async def clear_segments(strip: Optional[int] = None):
+    """Vacía la tabla completa, o solo la de una tira si se pasa ?strip=N."""
+    if strip is not None:
+        _check_strip(strip)
+    store.clear(strip)
     engine.selected_id = None
     await engine.refresh()
     return {"ok": True}

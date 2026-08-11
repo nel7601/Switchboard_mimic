@@ -108,10 +108,14 @@ class SegmentStore:
                 return True
             return False
 
-    def clear(self):
+    def clear(self, strip: Optional[int] = None):
+        """Vacía la tabla; con `strip` borra solo los segmentos de esa tira."""
         with self._lock:
-            self._segments = []
-            self._last_id = 0
+            if strip is None:
+                self._segments = []
+                self._last_id = 0
+            else:
+                self._segments = [s for s in self._segments if s["strip"] != strip]
             self._save()
 
     def count_by_element(self, element_id: int) -> int:
