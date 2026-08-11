@@ -46,9 +46,10 @@ function setBadge(id, text, cls) {
 
 function applyState(state) {
   testMode = state.test_mode;
-  $('strip').classList.toggle('testing', testMode);
+  $('strips').classList.toggle('testing', testMode);
   $('test-hint').hidden = !testMode;
-  renderStrip(state.pixels, state.hw_led_count);
+  renderStrips(state.strips);
+  fillStripSelect(state.strips.length);
   if (state.modbus_ok === null) setBadge('modbus-badge', 'Modbus: —');
   else if (state.modbus_ok) setBadge('modbus-badge', 'Modbus: OK', 'ok');
   else setBadge('modbus-badge', 'Modbus: error', 'err');
@@ -64,31 +65,63 @@ function applyState(state) {
 
 /* ---------- tira LED ---------- */
 
-function renderStrip(pixels, hwCount) {
-  const strip = $('strip');
-  if (strip.childElementCount !== pixels.length) {
-    strip.innerHTML = '';
-    pixels.forEach((_, i) => {
-      const led = document.createElement('div');
-      led.className = 'led';
-      led.textContent = i + 1;
-      led.onclick = async () => {
-        if (!testMode) return;
-        await fetch(`/api/test-led/${i + 1}`, { method: 'POST' });
-      };
-      strip.appendChild(led);
+function renderStrips(strips) {
+  const container = $('strips');
+  // reconstruir si cambió el nº de tiras o el nº de LEDs de alguna
+  const stale =
+    container.childElementCount !== strips.length ||
+    strips.some((s, idx) => {
+      const row = container.children[idx].querySelector('.strip');
+      return row.childElementCount !== s.pixels.length;
+    });
+  if (stale) {
+    container.innerHTML = '';
+    strips.forEach((s, idx) => {
+      const block = document.createElement('div');
+      block.className = 'strip-block';
+      if (strips.length > 1) {
+        const label = document.createElement('h3');
+        label.textContent = `Tira ${idx + 1}`;
+        block.appendChild(label);
+      }
+      const row = document.createElement('div');
+      row.className = 'strip';
+      s.pixels.forEach((_, i) => {
+        const led = document.createElement('div');
+        led.className = 'led';
+        led.textContent = i + 1;
+        led.onclick = async () => {
+          if (!testMode) return;
+          await fetch(`/api/test-led/${idx + 1}/${i + 1}`, { method: 'POST' });
+        };
+        row.appendChild(led);
+      });
+      block.appendChild(row);
+      container.appendChild(block);
     });
   }
-  [...strip.children].forEach((led, i) => {
-    const [r, g, b] = pixels[i];
-    led.style.background = `rgb(${r},${g},${b})`;
-    led.style.color = r + g + b > 300 ? '#222' : '#667';
-    const virtual = hwCount !== undefined && i >= hwCount;
-    led.classList.toggle('virtual', virtual);
-    led.title = virtual
-      ? `LED ${i + 1} — fuera de la tira física configurada (${hwCount})`
-      : `LED ${i + 1}`;
+  strips.forEach((s, idx) => {
+    const row = container.children[idx].querySelector('.strip');
+    [...row.children].forEach((led, i) => {
+      const [r, g, b] = s.pixels[i];
+      led.style.background = `rgb(${r},${g},${b})`;
+      led.style.color = r + g + b > 300 ? '#222' : '#667';
+      const virtual = i >= s.hw_led_count;
+      led.classList.toggle('virtual', virtual);
+      led.title = virtual
+        ? `LED ${i + 1} — fuera de la tira física configurada (${s.hw_led_count})`
+        : `LED ${i + 1}`;
+    });
   });
+}
+
+function fillStripSelect(count) {
+  const sel = $('f-strip');
+  if (sel.options.length === count) return;
+  const current = sel.value;
+  sel.innerHTML = Array.from({ length: count }, (_, i) =>
+    `<option value="${i + 1}">Tira ${i + 1}</option>`).join('');
+  if (current && Number(current) <= count) sel.value = current;
 }
 
 /* ---------- tabla ---------- */
@@ -118,7 +151,7 @@ function renderTable() {
     tr.dataset.id = seg.id;
     if (seg.id === selectedId) tr.classList.add('selected');
     tr.innerHTML = `
-      <td>${seg.id}</td><td>${seg.start}</td><td>${seg.end}</td>
+      <td>${seg.id}</td><td>${seg.strip}</td><td>${seg.start}</td><td>${seg.end}</td>
       <td>${elem ? escapeHtml(elem.name) : '—'}</td>
       <td>${elem ? escapeHtml(elem.type) : '—'}</td>
       <td><span class="chip"></span></td>`;
@@ -130,6 +163,7 @@ function renderTable() {
 async function selectRow(seg) {
   selectedId = seg.id;
   $('f-id').value = seg.id;
+  $('f-strip').value = seg.strip;
   $('f-start').value = seg.start;
   $('f-end').value = seg.end;
   $('f-element').value = seg.element_id;
@@ -150,6 +184,7 @@ function dismiss() {
 
 function formPayload() {
   return {
+    strip: Number($('f-strip').value) || 1,
     start: Number($('f-start').value),
     end: Number($('f-end').value),
     element_id: Number($('f-element').value),

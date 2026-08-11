@@ -27,12 +27,12 @@
   </header>
 
   <section class="card">
-    <h2>Tira LED</h2>
+    <h2>Tiras LED</h2>
     <p class="hint" id="test-hint" hidden>
       Modo test: haz click en un LED para encenderlo/apagarlo en azul en la tira física
       y comprobar su posición real.
     </p>
-    <div id="strip" class="strip"></div>
+    <div id="strips"></div>
   </section>
 
   <section class="card">
@@ -43,7 +43,7 @@
     </p>
     <table id="segments-table">
       <thead>
-        <tr><th>ID</th><th>LED inicio</th><th>LED fin</th><th>Elemento</th><th>Tipo</th><th>Color</th></tr>
+        <tr><th>ID</th><th>Tira</th><th>LED inicio</th><th>LED fin</th><th>Elemento</th><th>Tipo</th><th>Color</th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -51,6 +51,7 @@
     <form id="segment-form">
       <input type="hidden" id="f-id">
       <div class="fields">
+        <label>Tira <select id="f-strip"></select></label>
         <label>LED inicio <input type="number" id="f-start" min="1" value="1" required></label>
         <label>LED fin <input type="number" id="f-end" min="1" value="1" required></label>
         <label>Elemento <select id="f-element"></select></label>

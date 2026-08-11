@@ -57,7 +57,15 @@ h2 small { font-weight: normal; font-size: .8rem; }
   margin-bottom: 1rem;
 }
 
-/* --- tira LED --- */
+/* --- tiras LED --- */
+.strip-block { margin-bottom: .8rem; }
+.strip-block:last-child { margin-bottom: 0; }
+.strip-block h3 {
+  font-size: .82rem;
+  color: #9fb0c3;
+  margin-bottom: .4rem;
+  font-weight: normal;
+}
 .strip {
   display: flex;
   flex-wrap: wrap;
@@ -79,11 +87,11 @@ h2 small { font-weight: normal; font-size: .8rem; }
   border-style: dashed;
   border-color: #556;
 }
-.strip.testing .led {
+.testing .led {
   cursor: pointer;
   border-color: #2c68c9;
 }
-.strip.testing .led:hover {
+.testing .led:hover {
   box-shadow: 0 0 6px #2c68c9;
 }
 

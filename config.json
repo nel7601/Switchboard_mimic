@@ -1,10 +1,8 @@
 {
-  "led": {
-    "count": 60,
-    "gpio": 12,
-    "brightness": 50,
-    "channel": 0
-  },
+  "strips": [
+    { "count": 60, "gpio": 12, "brightness": 50, "channel": 0 },
+    { "count": 60, "gpio": 13, "brightness": 50, "channel": 1 }
+  ],
   "modbus": {
     "host": "127.0.0.1",
     "port": 5020,

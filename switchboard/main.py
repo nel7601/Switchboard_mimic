@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from .config import PROJECT_ROOT, load_config
 from .elementstore import ElementStore
 from .engine import MimicEngine
-from .leds import create_strip
+from .leds import create_bank
 from .modbus_client import ModbusPool
 from .store import SegmentStore
 from .typestore import RULES, TypeStore
@@ -29,10 +29,10 @@ cfg = load_config()
 store = SegmentStore(PROJECT_ROOT / cfg["data_file"])
 type_store = TypeStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "types"))
 element_store = ElementStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "elements"))
-strip = create_strip(cfg["led"])
+bank = create_bank(cfg["strips"])
 modbus = ModbusPool(cfg["modbus"]["timeout_s"])
 engine = MimicEngine(
-    store, element_store, type_store, strip, modbus,
+    store, element_store, type_store, bank, modbus,
     cfg["modbus"]["registers_per_element"], cfg["poll_interval_s"],
 )
 
@@ -61,7 +61,10 @@ async def lifespan(app: FastAPI):
     main_loop = asyncio.get_running_loop()
     engine.on_update = broadcast
     await engine.start()
-    log.info("Motor del mímico arrancado (%d LEDs)", strip.count)
+    log.info(
+        "Motor del mímico arrancado (%s)",
+        ", ".join(f"tira {i+1}: {c} LEDs" for i, c in enumerate(bank.counts)),
+    )
     yield
     await engine.stop()
 
@@ -73,6 +76,7 @@ class SegmentIn(BaseModel):
     start: int
     end: int
     element_id: int
+    strip: int = 1
 
 
 class ModbusParams(BaseModel):
@@ -120,9 +124,15 @@ def _check_element(elem_id: int):
         raise HTTPException(400, f"el elemento id={elem_id} no está definido (ver Elementos)")
 
 
+def _check_strip(strip: int):
+    if not 1 <= strip <= engine.strip_count:
+        raise HTTPException(400, f"tira fuera de rango (1-{engine.strip_count})")
+
+
 @app.post("/api/segments")
 async def add_segment(seg: SegmentIn):
     _check_element(seg.element_id)
+    _check_strip(seg.strip)
     try:
         row = store.add(seg.model_dump())
     except ValueError as exc:
@@ -134,6 +144,7 @@ async def add_segment(seg: SegmentIn):
 @app.put("/api/segments/{seg_id}")
 async def update_segment(seg_id: int, seg: SegmentIn):
     _check_element(seg.element_id)
+    _check_strip(seg.strip)
     try:
         row = store.update(seg_id, seg.model_dump())
     except ValueError as exc:
@@ -279,14 +290,15 @@ def select_segment(seg_id: int):
     return {"selected_id": engine.selected_id}
 
 
-@app.post("/api/test-led/{led}")
-def toggle_test_led(led: int):
+@app.post("/api/test-led/{strip}/{led}")
+def toggle_test_led(strip: int, led: int):
     """Enciende/apaga en azul un LED individual para probar posiciones físicas."""
     if not engine.test_mode:
         raise HTTPException(400, "activa el modo test primero")
-    if not 1 <= led <= engine.display_count():
-        raise HTTPException(400, f"LED fuera de rango (1-{engine.display_count()})")
-    engine.toggle_test_led(led)
+    _check_strip(strip)
+    if not 1 <= led <= engine.display_count(strip):
+        raise HTTPException(400, f"LED fuera de rango (1-{engine.display_count(strip)})")
+    engine.toggle_test_led(strip, led)
     return {"test_leds": sorted(engine.test_leds)}
 
 

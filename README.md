@@ -27,10 +27,13 @@ original hecho en Node-RED — misma lógica, sin dependencia de Node-RED.
 - Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento, con los parámetros
   de conexión de cada elemento) y calcula el color de cada segmento según la regla de
   su tipo.
-- La tira LED física se pinta con esos colores. La vista muestra al menos los LEDs de
-  la tira configurada (`config.json` → `led.count`) y **crece automáticamente** si la
-  tabla asigna LEDs más allá; los que exceden la tira física se dibujan con borde
-  discontinuo. La **web app** tiene tres páginas:
+- Soporta **hasta 2 tiras LED** simultáneas (los dos canales PWM de la Raspberry Pi),
+  definidas en `config.json` → `strips`: canal 0 en GPIO 12/18 y canal 1 en GPIO 13/19.
+  Ambas se manejan desde una única inicialización ws2811 (comparten periférico PWM y
+  DMA). Cada segmento de la tabla indica a qué tira pertenece.
+- La vista muestra al menos los LEDs configurados de cada tira y **crece
+  automáticamente** si la tabla asigna LEDs más allá; los que exceden la tira física
+  se dibujan con borde discontinuo. La **web app** tiene tres páginas:
   - `/` — mímico: estado en vivo de la tira y asignación rango de LEDs → elemento
     (CRUD, modo test que resalta en azul el segmento seleccionado)
   - `/elements` — elementos del cuadro con su tipo y parámetros Modbus
@@ -52,7 +55,7 @@ switchboard/        backend: FastAPI + WebSocket, poller Modbus, driver LED
 simulator/plc_sim.py  simulador de PLC Modbus (reemplaza la pestaña 'Modbus Simulation')
 web/                frontend vanilla JS (sin build step)
 systemd/            unidades de servicio
-config.json         LEDs (nº, GPIO, brillo), Modbus (host/puerto), puerto HTTP
+config.json         tiras LED (nº, GPIO, brillo, canal PWM), Modbus, puerto HTTP
 ```
 
 ## Instalación (Raspberry Pi)
@@ -107,6 +110,7 @@ sudo systemctl enable --now plc-simulator switchboard
 | PUT/DELETE | `/api/types/{name}` | Actualizar (renombra en cascada) / borrar tipo (bloqueado si está en uso) |
 | POST | `/api/refresh` | Forzar una pasada de refresco |
 | POST | `/api/test-mode/{bool}` | Modo test (congela refresco, resalta selección) |
+| POST | `/api/test-led/{tira}/{led}` | Encender/apagar en azul un LED individual (modo test) |
 | POST | `/api/select/{id}` | Seleccionar segmento (0 = ninguno) |
 | POST | `/api/modbus/write` | Escribir registro `{address, value}` (simulación) |
 | WS | `/ws` | Push de estado en tiempo real |
