@@ -27,10 +27,17 @@ original hecho en Node-RED — misma lógica, sin dependencia de Node-RED.
 - Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento, con los parámetros
   de conexión de cada elemento) y calcula el color de cada segmento según la regla de
   su tipo.
-- Soporta **hasta 2 tiras LED** simultáneas (los dos canales PWM de la Raspberry Pi),
-  definidas en `config.json` → `strips`: canal 0 en GPIO 12/18 y canal 1 en GPIO 13/19.
-  Ambas se manejan desde una única inicialización ws2811 (comparten periférico PWM y
-  DMA). Cada segmento de la tabla indica a qué tira pertenece.
+- Soporta **múltiples tiras LED**:
+  - Hasta 2 tiras **PWM locales** en la Raspberry Pi (`config.json` → `strips`):
+    canal 0 en GPIO 12/18 y canal 1 en GPIO 13/19, manejadas desde una única
+    inicialización ws2811 (comparten periférico PWM y DMA). Son fijas; desde
+    Settings solo se les cambia el nombre.
+  - Tiras **WLED** ilimitadas (controladores ESP32 en red), creadas desde Settings
+    con nombre, host/IP, puerto y nº de LEDs. Se pintan con el protocolo UDP
+    realtime DNRGB de WLED (sin dependencias, troceado automático para tiras
+    largas). Altas, bajas y cambios se aplican en caliente.
+  - Cada tira aparece como una pestaña en la vista Mímico, con su propia tabla de
+    segmentos. Cada segmento indica a qué tira pertenece.
 - La vista muestra al menos los LEDs configurados de cada tira y **crece
   automáticamente** si la tabla asigna LEDs más allá; los que exceden la tira física
   se dibujan con borde discontinuo. La **web app** tiene tres páginas:
@@ -50,6 +57,7 @@ switchboard/        backend: FastAPI + WebSocket, poller Modbus, driver LED
   store.py          asignación LEDs→elemento persistida en data/segments.json
   elementstore.py   elementos con tipo y parámetros Modbus (data/elements.json)
   typestore.py      tipos de objeto y su regla de color (data/types.json)
+  stripstore.py     tiras LED con nombre: pwm locales + wled remotas (data/strips.json)
   leds.py           driver rpi_ws281x con fallback a mock (sin hardware/root)
   modbus_client.py  cliente Modbus TCP asíncrono
 simulator/plc_sim.py  simulador de PLC Modbus (reemplaza la pestaña 'Modbus Simulation')
@@ -104,6 +112,8 @@ sudo systemctl enable --now plc-simulator switchboard
 | GET/POST | `/api/segments` | Listar / añadir segmento |
 | PUT/DELETE | `/api/segments/{id}` | Actualizar / borrar segmento |
 | DELETE | `/api/segments` | Vaciar tabla |
+| GET/POST | `/api/strips` | Listar tiras / añadir tira WLED (nombre, host, puerto, LEDs) |
+| PUT/DELETE | `/api/strips/{id}` | Renombrar (PWM y WLED) o editar/borrar (solo WLED, bloqueado si tiene segmentos) |
 | GET/POST | `/api/elements` | Listar / añadir elementos (nombre, tipo, params Modbus) |
 | PUT/DELETE | `/api/elements/{id}` | Actualizar / borrar elemento (bloqueado si está asignado) |
 | GET/POST | `/api/types` | Listar / añadir tipos de objeto |

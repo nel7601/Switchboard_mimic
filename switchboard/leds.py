@@ -1,16 +1,16 @@
-"""Banco de tiras WS2812B con fallback a mock cuando no hay hardware/root.
+"""Drivers de tiras LED.
 
-Soporta 1 o 2 tiras. PWM0 (GPIO 12/18) y PWM1 (GPIO 13/19) comparten el
-periférico PWM y el canal DMA, así que ambas se manejan desde una única
-inicialización ws2811 usando la API de bajo nivel de rpi_ws281x.
+- Tiras locales WS2812B (máx. 2): PWM0 (GPIO 12/18) y PWM1 (GPIO 13/19) comparten
+  el periférico PWM y el canal DMA, así que ambas se manejan desde una única
+  inicialización ws2811 usando la API de bajo nivel de rpi_ws281x. Fallback a mock
+  cuando no hay hardware/root.
+- Tiras remotas WLED (ESP32): protocolo UDP realtime DNRGB de WLED, sin
+  dependencias. Fire-and-forget: si el controlador no responde no bloquea nada.
 
-Interfaz del banco:
-  counts        -> lista con el nº de LEDs de cada tira
-  pixels        -> lista de buffers [(r,g,b), ...] por tira (estado actual)
-  render(idx, pixels) -> pinta una tira (la lista se recorta/rellena al tamaño)
-  clear()       -> apaga todas
+StripManager unifica ambas y direcciona por id de tira (StripStore).
 """
 import logging
+import socket
 
 log = logging.getLogger(__name__)
 
@@ -103,3 +103,90 @@ def create_bank(strips_cfg: list) -> BaseBank:
     except Exception as exc:
         log.warning("Sin acceso al hardware LED (%s) — usando driver simulado", exc)
         return MockBank([s["count"] for s in strips_cfg])
+
+
+class WledSender:
+    """Envía el buffer completo a un controlador WLED por UDP (protocolo DNRGB).
+
+    DNRGB: [4, timeout, idx_alto, idx_bajo, r,g,b, r,g,b, ...] — permite trocear
+    tiras largas en varios paquetes (máx. 489 LEDs por datagrama).
+    timeout=255 mantiene WLED en modo realtime indefinidamente.
+    """
+
+    MAX_LEDS_PER_PACKET = 489
+    REALTIME_FOREVER = 255
+
+    def __init__(self, host: str, port: int, count: int):
+        self.host = host
+        self.port = port
+        self.count = count
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def render(self, pixels: list):
+        buf = [
+            tuple(pixels[i]) if i < len(pixels) else (0, 0, 0) for i in range(self.count)
+        ]
+        try:
+            i = 0
+            while i < self.count:
+                chunk = buf[i : i + self.MAX_LEDS_PER_PACKET]
+                data = bytes([4, self.REALTIME_FOREVER, (i >> 8) & 0xFF, i & 0xFF])
+                data += b"".join(bytes(p) for p in chunk)
+                self._sock.sendto(data, (self.host, self.port))
+                i += len(chunk)
+        except OSError as exc:
+            log.warning("WLED %s:%s no accesible: %s", self.host, self.port, exc)
+
+    def close(self):
+        self._sock.close()
+
+
+class StripManager:
+    """Direcciona el pintado por id de tira: PWM locales (banco ws2811 único,
+    creado al arrancar) + tiras WLED (sincronizables en caliente)."""
+
+    def __init__(self, pwm_cfg: list, strip_store):
+        self._store = strip_store
+        self._bank = create_bank(pwm_cfg) if pwm_cfg else MockBank([])
+        # las entradas pwm del store van en el mismo orden que pwm_cfg
+        self._pwm_index = {
+            e["id"]: i
+            for i, e in enumerate(s for s in strip_store.list() if s["kind"] == "pwm")
+        }
+        self._wled: dict = {}  # id -> WledSender
+        self.sync()
+
+    def sync(self):
+        """Reconcilia los senders WLED con el StripStore (altas, bajas y cambios)."""
+        entries = {s["id"]: s for s in self._store.list() if s["kind"] == "wled"}
+        for sid in list(self._wled):
+            e = entries.get(sid)
+            sender = self._wled[sid]
+            if e is None or (e["host"], e["port"], e["count"]) != (
+                sender.host, sender.port, sender.count
+            ):
+                sender.close()
+                del self._wled[sid]
+        for sid, e in entries.items():
+            if sid not in self._wled:
+                self._wled[sid] = WledSender(e["host"], e["port"], e["count"])
+
+    def ids(self) -> list:
+        return [s["id"] for s in self._store.list()]
+
+    def hw_count(self, strip_id: int) -> int:
+        if strip_id in self._pwm_index:
+            return self._bank.counts[self._pwm_index[strip_id]]
+        sender = self._wled.get(strip_id)
+        return sender.count if sender else 0
+
+    def render(self, strip_id: int, pixels: list):
+        if strip_id in self._pwm_index:
+            self._bank.render(self._pwm_index[strip_id], pixels)
+        elif strip_id in self._wled:
+            self._wled[strip_id].render(pixels)
+
+    def clear(self):
+        self._bank.clear()
+        for sender in self._wled.values():
+            sender.render([])

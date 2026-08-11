@@ -17,9 +17,10 @@ from pydantic import BaseModel
 from .config import PROJECT_ROOT, load_config
 from .elementstore import ElementStore
 from .engine import MimicEngine
-from .leds import create_bank
+from .leds import StripManager
 from .modbus_client import ModbusPool
 from .store import SegmentStore
+from .stripstore import WLED_DEFAULT_PORT, StripStore
 from .typestore import RULES, TypeStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -29,10 +30,11 @@ cfg = load_config()
 store = SegmentStore(PROJECT_ROOT / cfg["data_file"])
 type_store = TypeStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "types"))
 element_store = ElementStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "elements"))
-bank = create_bank(cfg["strips"])
+strip_store = StripStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "strips"), cfg["strips"])
+manager = StripManager(cfg["strips"], strip_store)
 modbus = ModbusPool(cfg["modbus"]["timeout_s"])
 engine = MimicEngine(
-    store, element_store, type_store, bank, modbus,
+    store, element_store, type_store, strip_store, manager, modbus,
     cfg["modbus"]["registers_per_element"], cfg["poll_interval_s"],
 )
 
@@ -63,7 +65,10 @@ async def lifespan(app: FastAPI):
     await engine.start()
     log.info(
         "Motor del mímico arrancado (%s)",
-        ", ".join(f"tira {i+1}: {c} LEDs" for i, c in enumerate(bank.counts)),
+        ", ".join(
+            f"{s['name']} [{s['kind']}]: {manager.hw_count(s['id'])} LEDs"
+            for s in strip_store.list()
+        ),
     )
     yield
     await engine.stop()
@@ -97,6 +102,20 @@ class TypeIn(BaseModel):
     rule: str = "simple"
 
 
+class WledStripIn(BaseModel):
+    name: str
+    host: str
+    port: int = WLED_DEFAULT_PORT
+    count: int = 60
+
+
+class StripUpdate(BaseModel):
+    name: str
+    host: Optional[str] = None
+    port: Optional[int] = None
+    count: Optional[int] = None
+
+
 class RegisterWrite(BaseModel):
     address: int
     value: int
@@ -125,8 +144,8 @@ def _check_element(elem_id: int):
 
 
 def _check_strip(strip: int):
-    if not 1 <= strip <= engine.strip_count:
-        raise HTTPException(400, f"tira fuera de rango (1-{engine.strip_count})")
+    if not strip_store.exists(strip):
+        raise HTTPException(400, f"la tira id={strip} no existe")
 
 
 @app.post("/api/segments")
@@ -223,6 +242,64 @@ async def delete_element(elem_id: int):
         raise HTTPException(400, f"el elemento está asignado a {in_use} segmento(s) del mímico")
     if not element_store.delete(elem_id):
         raise HTTPException(404, "elemento no encontrado")
+    await engine.refresh()
+    return {"ok": True}
+
+
+# ---------- tiras (Settings) ----------
+
+@app.get("/api/strips")
+def list_strips():
+    rows = []
+    pwm_idx = 0
+    for s in strip_store.list():
+        row = dict(s)
+        row["hw_led_count"] = manager.hw_count(s["id"])
+        row["used_by"] = store.count_by_strip(s["id"])
+        if s["kind"] == "pwm":
+            hw = cfg["strips"][pwm_idx]
+            row.update(gpio=hw["gpio"], channel=hw["channel"], count=hw["count"])
+            pwm_idx += 1
+        rows.append(row)
+    return {"strips": rows, "wled_default_port": WLED_DEFAULT_PORT}
+
+
+@app.post("/api/strips")
+async def add_strip(s: WledStripIn):
+    try:
+        row = strip_store.add_wled(s.model_dump())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    manager.sync()
+    await engine.refresh()
+    return row
+
+
+@app.put("/api/strips/{strip_id}")
+async def update_strip(strip_id: int, s: StripUpdate):
+    try:
+        row = strip_store.update(strip_id, s.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if row is None:
+        raise HTTPException(404, "tira no encontrada")
+    manager.sync()
+    await engine.refresh()
+    return row
+
+
+@app.delete("/api/strips/{strip_id}")
+async def delete_strip(strip_id: int):
+    in_use = store.count_by_strip(strip_id)
+    if in_use:
+        raise HTTPException(400, f"la tira tiene {in_use} segmento(s) asignados en el mímico")
+    try:
+        if not strip_store.delete(strip_id):
+            raise HTTPException(404, "tira no encontrada")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    manager.sync()
+    engine.pixels.pop(strip_id, None)
     await engine.refresh()
     return {"ok": True}
 

@@ -121,3 +121,7 @@ class SegmentStore:
     def count_by_element(self, element_id: int) -> int:
         with self._lock:
             return sum(1 for s in self._segments if s["element_id"] == element_id)
+
+    def count_by_strip(self, strip_id: int) -> int:
+        with self._lock:
+            return sum(1 for s in self._segments if s["strip"] == strip_id)

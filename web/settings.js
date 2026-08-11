@@ -21,6 +21,7 @@ const SIM_OFFSETS = {
 let types = [];
 let rules = [];
 let elements = [];
+let strips = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -33,11 +34,15 @@ function escapeHtml(s) {
 /* ---------- tipos ---------- */
 
 async function loadAll() {
-  const [tRes, eRes] = await Promise.all([fetch('/api/types'), fetch('/api/elements')]);
+  const [tRes, eRes, sRes] = await Promise.all([
+    fetch('/api/types'), fetch('/api/elements'), fetch('/api/strips'),
+  ]);
   const tData = await tRes.json();
   types = tData.types;
   rules = tData.rules;
   elements = (await eRes.json()).elements;
+  strips = (await sRes.json()).strips;
+  renderStrips();
 
   const sel = $('t-rule');
   if (!sel.options.length) {
@@ -118,6 +123,106 @@ $('t-update').onclick = async () => {
 };
 
 $('t-dismiss').onclick = dismissType;
+
+/* ---------- tiras LED ---------- */
+
+function renderStrips() {
+  const tbody = document.querySelector('#strips-table tbody');
+  tbody.innerHTML = '';
+  for (const s of strips) {
+    const isPwm = s.kind === 'pwm';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(s.name)}</td>
+      <td><code>${isPwm ? 'PWM local' : 'WLED'}</code></td>
+      <td>${isPwm ? `GPIO${s.gpio} (PWM${s.channel})` : escapeHtml(`${s.host}:${s.port}`)}</td>
+      <td>${s.count}</td>
+      <td>${s.used_by}</td>
+      <td class="row-actions"></td>`;
+    if (!isPwm) {
+      const del = document.createElement('button');
+      del.textContent = 'Borrar';
+      del.className = 'danger small';
+      del.disabled = s.used_by > 0;
+      del.title = s.used_by > 0 ? 'Tiene segmentos asignados: no se puede borrar' : '';
+      del.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!confirm(`¿Borrar la tira "${s.name}"?`)) return;
+        const res = await fetch(`/api/strips/${s.id}`, { method: 'DELETE' });
+        if (!res.ok) alert((await res.json()).detail);
+        await loadAll();
+      };
+      tr.querySelector('.row-actions').appendChild(del);
+    }
+    tr.onclick = () => selectStrip(s);
+    tbody.appendChild(tr);
+  }
+}
+
+function toggleWledFields(isPwm) {
+  for (const id of ['s-host-label', 's-port-label', 's-count-label']) {
+    $(id).hidden = isPwm;
+  }
+  $('s-pwm-note').hidden = !isPwm;
+}
+
+function selectStrip(s) {
+  $('s-id').value = s.id;
+  $('s-name').value = s.name;
+  toggleWledFields(s.kind === 'pwm');
+  if (s.kind === 'wled') {
+    $('s-host').value = s.host;
+    $('s-port').value = s.port;
+    $('s-count').value = s.count;
+  }
+  $('s-update').disabled = false;
+}
+
+function dismissStrip() {
+  $('s-id').value = '';
+  $('s-name').value = '';
+  toggleWledFields(false);
+  $('s-update').disabled = true;
+}
+
+$('strip-form').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const res = await fetch('/api/strips', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: $('s-name').value,
+      host: $('s-host').value,
+      port: Number($('s-port').value),
+      count: Number($('s-count').value),
+    }),
+  });
+  if (!res.ok) alert((await res.json()).detail);
+  dismissStrip();
+  await loadAll();
+};
+
+$('s-update').onclick = async () => {
+  const id = $('s-id').value;
+  if (!id) return;
+  const s = strips.find((x) => String(x.id) === id);
+  const body = { name: $('s-name').value };
+  if (s && s.kind === 'wled') {
+    body.host = $('s-host').value;
+    body.port = Number($('s-port').value);
+    body.count = Number($('s-count').value);
+  }
+  const res = await fetch(`/api/strips/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) alert((await res.json()).detail);
+  dismissStrip();
+  await loadAll();
+};
+
+$('s-dismiss').onclick = dismissStrip;
 
 /* ---------- simulador ---------- */
 

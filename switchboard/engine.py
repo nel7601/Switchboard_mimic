@@ -11,9 +11,10 @@ from typing import Callable, Optional
 
 from .colors import COLOR_RGB, color_from_registers, derived_color
 from .elementstore import ElementStore
-from .leds import BaseBank
+from .leds import StripManager
 from .modbus_client import ModbusPool
 from .store import SegmentStore
+from .stripstore import StripStore
 from .typestore import TypeStore
 
 log = logging.getLogger(__name__)
@@ -25,7 +26,8 @@ class MimicEngine:
         store: SegmentStore,
         elements: ElementStore,
         types: TypeStore,
-        bank: BaseBank,
+        strips: StripStore,
+        manager: StripManager,
         modbus: ModbusPool,
         registers_per_element: int = 5,
         poll_interval_s: float = 2.0,
@@ -33,24 +35,24 @@ class MimicEngine:
         self.store = store
         self.elements = elements
         self.types = types
-        self.bank = bank
+        self.strips = strips
+        self.manager = manager
         self.modbus = modbus
         self._reg_count = registers_per_element
         self._interval = poll_interval_s
         self.test_mode = False
         self.selected_id: Optional[int] = None
-        self.test_leds: set = set()  # {(tira, led)} encendidos a mano en modo test (base 1)
-        # buffers virtuales por tira (pueden exceder la tira física)
-        self.pixels: list = [[(0, 0, 0)] * c for c in bank.counts]
+        self.test_leds: set = set()  # {(id_tira, led)} encendidos a mano en modo test
+        # buffers virtuales por id de tira (pueden exceder la tira física)
+        self.pixels: dict = {sid: [] for sid in manager.ids()}
         self.resolved: list[dict] = []  # última tabla con colores
         self.modbus_ok: Optional[bool] = None
         self.on_update: Optional[Callable] = None  # callback para el websocket
         self._task: Optional[asyncio.Task] = None
         self._refresh_lock: Optional[asyncio.Lock] = None  # perezoso (Python 3.9)
 
-    @property
-    def strip_count(self) -> int:
-        return len(self.bank.counts)
+    def strip_exists(self, strip_id: int) -> bool:
+        return self.strips.exists(strip_id)
 
     # ---------- ciclo principal ----------
 
@@ -60,7 +62,7 @@ class MimicEngine:
     async def stop(self):
         if self._task:
             self._task.cancel()
-        self.bank.clear()
+        self.manager.clear()
         await self.modbus.close()
 
     async def _loop(self):
@@ -116,28 +118,25 @@ class MimicEngine:
 
     # ---------- pintado ----------
 
-    def display_count(self, strip: int) -> int:
-        """LEDs a mostrar en la tira `strip` (base 1): al menos la tira física,
-        y crece si la tabla asigna más."""
-        count = self.bank.counts[strip - 1]
+    def display_count(self, strip_id: int) -> int:
+        """LEDs a mostrar en la tira: al menos la tira física, y crece si la
+        tabla asigna más."""
+        count = self.manager.hw_count(strip_id)
         for seg in self.store.list():
-            if seg["strip"] == strip:
+            if seg["strip"] == strip_id:
                 count = max(count, seg["start"], seg["end"])
         for s, led in self.test_leds:
-            if s == strip:
+            if s == strip_id:
                 count = max(count, led)
         return count
 
     def _paint(self):
         """Pinta los buffers virtuales; cada tira física recibe solo lo que le cabe."""
-        buffers = [
-            [(0, 0, 0)] * self.display_count(strip)
-            for strip in range(1, self.strip_count + 1)
-        ]
+        buffers = {sid: [(0, 0, 0)] * self.display_count(sid) for sid in self.manager.ids()}
         for row in self.resolved:
-            if not 1 <= row["strip"] <= self.strip_count:
+            buf = buffers.get(row["strip"])
+            if buf is None:
                 continue
-            buf = buffers[row["strip"] - 1]
             rgb = COLOR_RGB.get(row["color"], COLOR_RGB["Gray"])
             lo, hi = min(row["start"], row["end"]), max(row["start"], row["end"])
             for led in range(lo, hi + 1):
@@ -146,18 +145,19 @@ class MimicEngine:
         if self.test_mode:
             if self.selected_id is not None:
                 sel = self.store.get(self.selected_id)
-                if sel and 1 <= sel["strip"] <= self.strip_count:
-                    buf = buffers[sel["strip"] - 1]
+                buf = buffers.get(sel["strip"]) if sel else None
+                if buf is not None:
                     lo, hi = min(sel["start"], sel["end"]), max(sel["start"], sel["end"])
                     for led in range(lo, hi + 1):
                         if 1 <= led <= len(buf):
                             buf[led - 1] = COLOR_RGB["Blue"]
             for s, led in self.test_leds:
-                if 1 <= s <= self.strip_count and 1 <= led <= len(buffers[s - 1]):
-                    buffers[s - 1][led - 1] = COLOR_RGB["Blue"]
+                buf = buffers.get(s)
+                if buf is not None and 1 <= led <= len(buf):
+                    buf[led - 1] = COLOR_RGB["Blue"]
         self.pixels = buffers
-        for idx, buf in enumerate(buffers):
-            self.bank.render(idx, buf)
+        for sid, buf in buffers.items():
+            self.manager.render(sid, buf)
 
     # ---------- interacción desde la API ----------
 
@@ -169,9 +169,9 @@ class MimicEngine:
         self._paint()
         self._notify()
 
-    def toggle_test_led(self, strip: int, led: int):
+    def toggle_test_led(self, strip_id: int, led: int):
         """Enciende/apaga en azul un LED individual de una tira (solo en modo test)."""
-        key = (strip, led)
+        key = (strip_id, led)
         if key in self.test_leds:
             self.test_leds.discard(key)
         else:
@@ -193,11 +193,14 @@ class MimicEngine:
             "segments": self.resolved,
             "strips": [
                 {
-                    "pixels": self.pixels[i],
-                    "led_count": len(self.pixels[i]),
-                    "hw_led_count": self.bank.counts[i],
+                    "id": s["id"],
+                    "name": s["name"],
+                    "kind": s["kind"],
+                    "pixels": self.pixels.get(s["id"], []),
+                    "led_count": len(self.pixels.get(s["id"], [])),
+                    "hw_led_count": self.manager.hw_count(s["id"]),
                 }
-                for i in range(self.strip_count)
+                for s in self.strips.list()
             ],
         }
 

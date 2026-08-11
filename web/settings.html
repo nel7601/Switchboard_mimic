@@ -19,6 +19,40 @@
   </header>
 
   <section class="card">
+    <h2>Tiras LED</h2>
+    <p class="hint">
+      Las dos tiras PWM locales de la Raspberry Pi vienen de fábrica (solo se les puede
+      cambiar el nombre). Puedes añadir tiras remotas <strong>WLED</strong> (ESP32) por
+      red: cada tira aparece como una pestaña en la vista Mímico.
+    </p>
+    <table id="strips-table">
+      <thead>
+        <tr><th>Nombre</th><th>Clase</th><th>Conexión</th><th>LEDs</th><th>Segmentos</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <form id="strip-form">
+      <input type="hidden" id="s-id">
+      <div class="fields">
+        <label>Nombre <input type="text" id="s-name" required></label>
+        <label id="s-host-label">Host / IP <input type="text" id="s-host" placeholder="192.168.x.x"></label>
+        <label id="s-port-label">Puerto UDP <input type="number" id="s-port" min="1" max="65535" value="21324"></label>
+        <label id="s-count-label">Nº LEDs <input type="number" id="s-count" min="1" value="60"></label>
+      </div>
+      <p class="hint" id="s-pwm-note" hidden>
+        Tira PWM local: solo se puede cambiar el nombre. GPIO y nº de LEDs se ajustan
+        en <code>config.json</code>.
+      </p>
+      <div class="actions">
+        <button type="submit" id="s-add">Añadir tira WLED</button>
+        <button type="button" id="s-update" disabled>Actualizar</button>
+        <button type="button" id="s-dismiss">Deseleccionar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
     <h2>Tipos de objeto</h2>
     <p class="hint">
       Los tipos definidos aquí se asignan a los elementos en la vista

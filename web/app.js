@@ -9,8 +9,8 @@ let segments = [];
 let elements = [];
 let selectedId = null;
 let testMode = false;
-let activeStrip = 1;
-let stripCount = 1;
+let activeStrip = null;   // id de la tira activa
+let stripsMeta = [];      // [{id, name}] de la última actualización
 
 const $ = (id) => document.getElementById(id);
 
@@ -48,10 +48,17 @@ function setBadge(id, text, cls) {
 
 function applyState(state) {
   testMode = state.test_mode;
-  stripCount = state.strips.length;
+  const meta = state.strips.map((s) => ({ id: s.id, name: s.name }));
+  if (activeStrip === null || !meta.some((m) => m.id === activeStrip)) {
+    activeStrip = meta.length ? meta[0].id : null;
+  }
+  if (JSON.stringify(meta) !== JSON.stringify(stripsMeta)) {
+    stripsMeta = meta;
+    renderTabs();
+    renderTable();
+  }
   $('strips').classList.toggle('testing', testMode);
   $('test-hint').hidden = !testMode;
-  renderTabs();
   renderStrips(state.strips);
   if (state.modbus_ok === null) setBadge('modbus-badge', 'Modbus: —');
   else if (state.modbus_ok) setBadge('modbus-badge', 'Modbus: OK', 'ok');
@@ -70,45 +77,46 @@ function applyState(state) {
 
 function renderTabs() {
   const bar = $('strip-tabs');
-  if (bar.childElementCount === stripCount || stripCount < 2) {
-    if (stripCount < 2) bar.innerHTML = '';
-    return;
-  }
   bar.innerHTML = '';
-  for (let n = 1; n <= stripCount; n++) {
+  if (stripsMeta.length < 2) return;
+  for (const m of stripsMeta) {
     const btn = document.createElement('button');
-    btn.textContent = `Tira ${n}`;
-    btn.classList.toggle('active', n === activeStrip);
-    btn.onclick = () => switchStrip(n);
+    btn.textContent = m.name;
+    btn.classList.toggle('active', m.id === activeStrip);
+    btn.onclick = () => switchStrip(m.id);
     bar.appendChild(btn);
   }
 }
 
-function switchStrip(n) {
-  if (n === activeStrip) return;
-  activeStrip = n;
+function switchStrip(id) {
+  if (id === activeStrip) return;
+  activeStrip = id;
   [...$('strip-tabs').children].forEach((btn, i) =>
-    btn.classList.toggle('active', i + 1 === n));
-  [...$('strips').children].forEach((block, i) => {
-    block.style.display = i + 1 === n ? '' : 'none';
+    btn.classList.toggle('active', stripsMeta[i].id === id));
+  [...$('strips').children].forEach((block) => {
+    block.style.display = Number(block.dataset.stripId) === id ? '' : 'none';
   });
   dismiss(); // la selección pertenecía a la otra tira
 }
 
 function renderStrips(strips) {
   const container = $('strips');
-  // reconstruir si cambió el nº de tiras o el nº de LEDs de alguna
+  // reconstruir si cambiaron las tiras (nº, ids) o el nº de LEDs de alguna
   const stale =
     container.childElementCount !== strips.length ||
     strips.some((s, idx) => {
-      const row = container.children[idx].querySelector('.strip');
-      return row.childElementCount !== s.pixels.length;
+      const block = container.children[idx];
+      return (
+        Number(block.dataset.stripId) !== s.id ||
+        block.querySelector('.strip').childElementCount !== s.pixels.length
+      );
     });
   if (stale) {
     container.innerHTML = '';
-    strips.forEach((s, idx) => {
+    for (const s of strips) {
       const block = document.createElement('div');
       block.className = 'strip-block';
+      block.dataset.stripId = s.id;
       const row = document.createElement('div');
       row.className = 'strip';
       s.pixels.forEach((_, i) => {
@@ -117,17 +125,17 @@ function renderStrips(strips) {
         led.textContent = i + 1;
         led.onclick = async () => {
           if (!testMode) return;
-          await fetch(`/api/test-led/${idx + 1}/${i + 1}`, { method: 'POST' });
+          await fetch(`/api/test-led/${s.id}/${i + 1}`, { method: 'POST' });
         };
         row.appendChild(led);
       });
       block.appendChild(row);
       container.appendChild(block);
-    });
+    }
   }
   strips.forEach((s, idx) => {
     const block = container.children[idx];
-    block.style.display = idx + 1 === activeStrip ? '' : 'none';
+    block.style.display = s.id === activeStrip ? '' : 'none';
     const row = block.querySelector('.strip');
     [...row.children].forEach((led, i) => {
       const [r, g, b] = s.pixels[i];
@@ -202,7 +210,7 @@ function dismiss() {
 
 function formPayload() {
   return {
-    strip: activeStrip,
+    strip: activeStrip ?? 1,
     start: Number($('f-start').value),
     end: Number($('f-end').value),
     element_id: Number($('f-element').value),

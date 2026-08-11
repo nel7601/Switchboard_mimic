@@ -1,0 +1,15 @@
+{
+  "last_id": 3,
+  "strips": [
+    {
+      "id": 1,
+      "name": "Tira 1",
+      "kind": "pwm"
+    },
+    {
+      "id": 2,
+      "name": "Tira 2",
+      "kind": "pwm"
+    }
+  ]
+}
