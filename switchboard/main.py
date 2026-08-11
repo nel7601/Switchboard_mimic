@@ -284,8 +284,8 @@ def toggle_test_led(led: int):
     """Enciende/apaga en azul un LED individual para probar posiciones físicas."""
     if not engine.test_mode:
         raise HTTPException(400, "activa el modo test primero")
-    if not 1 <= led <= strip.count:
-        raise HTTPException(400, f"LED fuera de rango (1-{strip.count})")
+    if not 1 <= led <= engine.display_count():
+        raise HTTPException(400, f"LED fuera de rango (1-{engine.display_count()})")
     engine.toggle_test_led(led)
     return {"test_leds": sorted(engine.test_leds)}
 

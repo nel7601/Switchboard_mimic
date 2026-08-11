@@ -48,7 +48,7 @@ function applyState(state) {
   testMode = state.test_mode;
   $('strip').classList.toggle('testing', testMode);
   $('test-hint').hidden = !testMode;
-  renderStrip(state.pixels);
+  renderStrip(state.pixels, state.hw_led_count);
   if (state.modbus_ok === null) setBadge('modbus-badge', 'Modbus: —');
   else if (state.modbus_ok) setBadge('modbus-badge', 'Modbus: OK', 'ok');
   else setBadge('modbus-badge', 'Modbus: error', 'err');
@@ -64,7 +64,7 @@ function applyState(state) {
 
 /* ---------- tira LED ---------- */
 
-function renderStrip(pixels) {
+function renderStrip(pixels, hwCount) {
   const strip = $('strip');
   if (strip.childElementCount !== pixels.length) {
     strip.innerHTML = '';
@@ -72,7 +72,6 @@ function renderStrip(pixels) {
       const led = document.createElement('div');
       led.className = 'led';
       led.textContent = i + 1;
-      led.title = `LED ${i + 1}`;
       led.onclick = async () => {
         if (!testMode) return;
         await fetch(`/api/test-led/${i + 1}`, { method: 'POST' });
@@ -84,6 +83,11 @@ function renderStrip(pixels) {
     const [r, g, b] = pixels[i];
     led.style.background = `rgb(${r},${g},${b})`;
     led.style.color = r + g + b > 300 ? '#222' : '#667';
+    const virtual = hwCount !== undefined && i >= hwCount;
+    led.classList.toggle('virtual', virtual);
+    led.title = virtual
+      ? `LED ${i + 1} — fuera de la tira física configurada (${hwCount})`
+      : `LED ${i + 1}`;
   });
 }
 

@@ -39,6 +39,7 @@ class MimicEngine:
         self.test_mode = False
         self.selected_id: Optional[int] = None
         self.test_leds: set = set()  # LEDs encendidos a mano en modo test (base 1)
+        self.pixels: list = [(0, 0, 0)] * strip.count  # buffer virtual (puede exceder la tira)
         self.resolved: list[dict] = []  # última tabla con colores
         self.modbus_ok: Optional[bool] = None
         self.on_update: Optional[Callable] = None  # callback para el websocket
@@ -109,13 +110,23 @@ class MimicEngine:
 
     # ---------- pintado ----------
 
+    def display_count(self) -> int:
+        """LEDs a mostrar: al menos la tira física, y crece si la tabla asigna más."""
+        count = self.strip.count
+        for seg in self.store.list():
+            count = max(count, seg["start"], seg["end"])
+        count = max(count, *self.test_leds) if self.test_leds else count
+        return count
+
     def _paint(self):
-        pixels = [(0, 0, 0)] * self.strip.count
+        """Pinta el buffer virtual completo; la tira física recibe solo lo que le cabe."""
+        n = self.display_count()
+        pixels = [(0, 0, 0)] * n
         for row in self.resolved:
             rgb = COLOR_RGB.get(row["color"], COLOR_RGB["Gray"])
             lo, hi = min(row["start"], row["end"]), max(row["start"], row["end"])
             for led in range(lo, hi + 1):
-                if 1 <= led <= self.strip.count:
+                if 1 <= led <= n:
                     pixels[led - 1] = rgb
         if self.test_mode:
             if self.selected_id is not None:
@@ -123,11 +134,12 @@ class MimicEngine:
                 if sel:
                     lo, hi = min(sel["start"], sel["end"]), max(sel["start"], sel["end"])
                     for led in range(lo, hi + 1):
-                        if 1 <= led <= self.strip.count:
+                        if 1 <= led <= n:
                             pixels[led - 1] = COLOR_RGB["Blue"]
             for led in self.test_leds:
-                if 1 <= led <= self.strip.count:
+                if 1 <= led <= n:
                     pixels[led - 1] = COLOR_RGB["Blue"]
+        self.pixels = pixels
         self.strip.render(pixels)
 
     # ---------- interacción desde la API ----------
@@ -161,8 +173,9 @@ class MimicEngine:
             "test_leds": sorted(self.test_leds),
             "modbus_ok": self.modbus_ok,
             "segments": self.resolved,
-            "pixels": self.strip.pixels,
-            "led_count": self.strip.count,
+            "pixels": self.pixels,
+            "led_count": len(self.pixels),
+            "hw_led_count": self.strip.count,
         }
 
     def _notify(self):

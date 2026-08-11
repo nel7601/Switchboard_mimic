@@ -75,6 +75,10 @@ h2 small { font-weight: normal; font-size: .8rem; }
   font-size: .55rem;
   color: #667;
 }
+.led.virtual {
+  border-style: dashed;
+  border-color: #556;
+}
 .strip.testing .led {
   cursor: pointer;
   border-color: #2c68c9;

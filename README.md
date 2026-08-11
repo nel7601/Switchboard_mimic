@@ -27,7 +27,10 @@ original hecho en Node-RED — misma lógica, sin dependencia de Node-RED.
 - Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento, con los parámetros
   de conexión de cada elemento) y calcula el color de cada segmento según la regla de
   su tipo.
-- La tira LED física se pinta con esos colores. La **web app** tiene tres páginas:
+- La tira LED física se pinta con esos colores. La vista muestra al menos los LEDs de
+  la tira configurada (`config.json` → `led.count`) y **crece automáticamente** si la
+  tabla asigna LEDs más allá; los que exceden la tira física se dibujan con borde
+  discontinuo. La **web app** tiene tres páginas:
   - `/` — mímico: estado en vivo de la tira y asignación rango de LEDs → elemento
     (CRUD, modo test que resalta en azul el segmento seleccionado)
   - `/elements` — elementos del cuadro con su tipo y parámetros Modbus
