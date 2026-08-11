@@ -2,44 +2,44 @@
   "last_id": 6,
   "segments": [
     {
-      "id": 1,
       "start": 1,
       "end": 2,
       "description": "Hydro",
       "type": "Incom",
-      "station": 104
+      "station": 104,
+      "id": 2
     },
     {
-      "id": 2,
       "start": 3,
       "end": 4,
       "description": "Utility Breaker",
       "type": "Breaker",
-      "station": 105
+      "station": 105,
+      "id": 3
     },
     {
-      "id": 3,
       "start": 5,
       "end": 6,
       "description": "Bus A",
       "type": "Bus",
-      "station": 110
+      "station": 110,
+      "id": 4
     },
     {
-      "id": 4,
       "start": 7,
       "end": 8,
       "description": "Feeder A",
       "type": "Breaker",
-      "station": 115
+      "station": 115,
+      "id": 5
     },
     {
-      "id": 5,
       "start": 9,
       "end": 10,
       "description": "Load",
       "type": "Feeder",
-      "station": 0
+      "station": 0,
+      "id": 6
     }
   ]
 }

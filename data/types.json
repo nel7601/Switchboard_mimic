@@ -1,0 +1,24 @@
+{
+  "types": [
+    {
+      "name": "Incom",
+      "rule": "simple"
+    },
+    {
+      "name": "Bus",
+      "rule": "bus"
+    },
+    {
+      "name": "Tie",
+      "rule": "simple"
+    },
+    {
+      "name": "Feeder",
+      "rule": "derived"
+    },
+    {
+      "name": "Breaker",
+      "rule": "breaker"
+    }
+  ]
+}

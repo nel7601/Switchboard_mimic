@@ -19,19 +19,21 @@ from .config import PROJECT_ROOT, load_config
 from .engine import MimicEngine
 from .leds import create_strip
 from .modbus_client import ModbusReader
-from .store import ELEMENT_TYPES, SegmentStore
+from .store import SegmentStore
+from .typestore import RULES, TypeStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("switchboard")
 
 cfg = load_config()
 store = SegmentStore(PROJECT_ROOT / cfg["data_file"])
+type_store = TypeStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "types"))
 strip = create_strip(cfg["led"])
 modbus = ModbusReader(
     cfg["modbus"]["host"], cfg["modbus"]["port"], cfg["modbus"]["unit"], cfg["modbus"]["timeout_s"]
 )
 engine = MimicEngine(
-    store, strip, modbus, cfg["modbus"]["registers_per_element"], cfg["poll_interval_s"]
+    store, type_store, strip, modbus, cfg["modbus"]["registers_per_element"], cfg["poll_interval_s"]
 )
 
 ws_clients: set = set()
@@ -80,6 +82,11 @@ class RegisterWrite(BaseModel):
     value: int
 
 
+class TypeIn(BaseModel):
+    name: str
+    rule: str = "simple"
+
+
 # ---------- API ----------
 
 @app.get("/api/state")
@@ -89,11 +96,17 @@ def get_state():
 
 @app.get("/api/segments")
 def list_segments():
-    return {"segments": store.list(), "types": ELEMENT_TYPES}
+    return {"segments": store.list(), "types": [t["name"] for t in type_store.list()]}
+
+
+def _check_type(name: str):
+    if not type_store.exists(name):
+        raise HTTPException(400, f"el tipo {name!r} no está definido (ver Settings)")
 
 
 @app.post("/api/segments")
 async def add_segment(seg: SegmentIn):
+    _check_type(seg.type)
     try:
         row = store.add(seg.model_dump())
     except ValueError as exc:
@@ -104,6 +117,7 @@ async def add_segment(seg: SegmentIn):
 
 @app.put("/api/segments/{seg_id}")
 async def update_segment(seg_id: int, seg: SegmentIn):
+    _check_type(seg.type)
     try:
         row = store.update(seg_id, seg.model_dump())
     except ValueError as exc:
@@ -129,6 +143,47 @@ async def clear_segments():
     store.clear()
     engine.selected_id = None
     await engine.refresh()
+    return {"ok": True}
+
+
+# ---------- tipos (Settings) ----------
+
+@app.get("/api/types")
+def list_types():
+    return {"types": type_store.list(), "rules": RULES}
+
+
+@app.post("/api/types")
+async def add_type(t: TypeIn):
+    try:
+        row = type_store.add(t.model_dump())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    await engine.refresh()
+    return row
+
+
+@app.put("/api/types/{name}")
+async def update_type(name: str, t: TypeIn):
+    try:
+        row = type_store.update(name, t.model_dump())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if row is None:
+        raise HTTPException(404, "tipo no encontrado")
+    if row["name"] != name:
+        store.rename_type(name, row["name"])
+    await engine.refresh()
+    return row
+
+
+@app.delete("/api/types/{name}")
+async def delete_type(name: str):
+    in_use = store.count_by_type(name)
+    if in_use:
+        raise HTTPException(400, f"el tipo {name!r} está asignado a {in_use} segmento(s)")
+    if not type_store.delete(name):
+        raise HTTPException(404, "tipo no encontrado")
     return {"ok": True}
 
 
@@ -185,6 +240,11 @@ app.mount("/static", StaticFiles(directory=web_dir), name="static")
 @app.get("/")
 def index():
     return FileResponse(web_dir / "index.html")
+
+
+@app.get("/settings")
+def settings_page():
+    return FileResponse(web_dir / "settings.html")
 
 
 if __name__ == "__main__":

@@ -8,10 +8,11 @@ import asyncio
 import logging
 from typing import Callable, Optional
 
-from .colors import COLOR_RGB, color_from_registers, feeder_color
+from .colors import COLOR_RGB, color_from_registers, derived_color
 from .leds import BaseStrip
 from .modbus_client import ModbusReader
 from .store import SegmentStore
+from .typestore import TypeStore
 
 log = logging.getLogger(__name__)
 
@@ -20,12 +21,14 @@ class MimicEngine:
     def __init__(
         self,
         store: SegmentStore,
+        types: TypeStore,
         strip: BaseStrip,
         modbus: ModbusReader,
         registers_per_element: int = 5,
         poll_interval_s: float = 2.0,
     ):
         self.store = store
+        self.types = types
         self.strip = strip
         self.modbus = modbus
         self._reg_count = registers_per_element
@@ -63,12 +66,13 @@ class MimicEngine:
         ok = True
         for seg in self.store.list():
             row = dict(seg)
+            row["rule"] = self.types.rule_for(seg["type"])
             try:
-                if seg["type"] == "Feeder":
-                    row["color"] = feeder_color(resolved, seg["start"])
+                if row["rule"] == "derived":
+                    row["color"] = derived_color(resolved, seg["start"])
                 else:
                     regs = await self.modbus.read_holding(seg["station"], self._reg_count)
-                    row["color"] = color_from_registers(seg["type"], regs)
+                    row["color"] = color_from_registers(row["rule"], regs)
             except Exception as exc:
                 log.warning("Segmento %s (addr %s): %s", seg["id"], seg["station"], exc)
                 row["color"] = "Gray"

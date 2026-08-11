@@ -5,18 +5,6 @@ const COLOR_RGB = {
   Gray: 'rgb(169,169,169)', Blue: 'rgb(0,0,255)',
 };
 
-// Registros del simulador (mismo mapa que la pestaña 'Modbus Simulation' original)
-const SIM_REGISTERS = [
-  { addr: 104, name: 'Incom (104)' },
-  { addr: 105, name: 'Breaker Utility: cerrado (105)' },
-  { addr: 106, name: 'Breaker Utility: abierto (106)' },
-  { addr: 107, name: 'Breaker Utility: disparado (107)' },
-  { addr: 110, name: 'Bus A (110)' },
-  { addr: 115, name: 'Breaker Feeder: cerrado (115)' },
-  { addr: 116, name: 'Breaker Feeder: abierto (116)' },
-  { addr: 117, name: 'Breaker Feeder: disparado (117)' },
-];
-
 let segments = [];
 let selectedId = null;
 let types = [];
@@ -87,10 +75,12 @@ async function loadSegments() {
   const res = await fetch('/api/segments');
   const data = await res.json();
   segments = data.segments;
-  if (!types.length) {
+  if (JSON.stringify(types) !== JSON.stringify(data.types)) {
     types = data.types;
     const sel = $('f-type');
+    const current = sel.value;
     sel.innerHTML = types.map((t) => `<option>${t}</option>`).join('');
+    if (types.includes(current)) sel.value = current;
   }
   renderTable();
 }
@@ -150,32 +140,6 @@ function formPayload() {
   };
 }
 
-/* ---------- simulador ---------- */
-
-function buildSimPanel() {
-  const panel = $('sim-panel');
-  for (const reg of SIM_REGISTERS) {
-    const row = document.createElement('div');
-    row.className = 'sim-row';
-    row.innerHTML = `<span class="name">${reg.name}</span>`;
-    for (const val of [1, 0]) {
-      const btn = document.createElement('button');
-      btn.textContent = val ? 'ON (1)' : 'OFF (0)';
-      if (val) btn.classList.add('on');
-      btn.onclick = async () => {
-        await fetch('/api/modbus/write', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: reg.addr, value: val }),
-        });
-        await fetch('/api/refresh', { method: 'POST' });
-      };
-      row.appendChild(btn);
-    }
-    panel.appendChild(row);
-  }
-}
-
 /* ---------- eventos ---------- */
 
 $('segment-form').onsubmit = async (ev) => {
@@ -222,5 +186,4 @@ $('test-mode').onchange = (ev) =>
 /* ---------- init ---------- */
 
 loadSegments();
-buildSimPanel();
 connectWs();

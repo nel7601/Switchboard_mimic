@@ -4,9 +4,6 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-ELEMENT_TYPES = ["Incom", "Breaker", "Bus", "Tie", "Feeder"]
-
-
 class SegmentStore:
     """Tabla de segmentos: cada fila mapea un tramo de LEDs a un elemento eléctrico.
 
@@ -35,9 +32,9 @@ class SegmentStore:
 
     @staticmethod
     def _validate(row: dict) -> dict:
-        seg_type = row.get("type", "Incom")
-        if seg_type not in ELEMENT_TYPES:
-            raise ValueError(f"type inválido: {seg_type!r} (válidos: {ELEMENT_TYPES})")
+        seg_type = str(row.get("type", "")).strip()
+        if not seg_type:
+            raise ValueError("el segmento necesita un tipo")
         start, end = int(row.get("start", 1)), int(row.get("end", 1))
         if start < 1 or end < 1:
             raise ValueError("start/end deben ser >= 1")
@@ -91,3 +88,19 @@ class SegmentStore:
             self._segments = []
             self._last_id = 0
             self._save()
+
+    def count_by_type(self, type_name: str) -> int:
+        with self._lock:
+            return sum(1 for s in self._segments if s["type"] == type_name)
+
+    def rename_type(self, old: str, new: str) -> int:
+        """Cascada al renombrar un tipo en Settings. Devuelve filas afectadas."""
+        with self._lock:
+            n = 0
+            for seg in self._segments:
+                if seg["type"] == old:
+                    seg["type"] = new
+                    n += 1
+            if n:
+                self._save()
+            return n

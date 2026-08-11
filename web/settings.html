@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — Switchboard Mimic</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Switchboard Mimic</h1>
+      <nav>
+        <a href="/">Mímico</a>
+        <a href="/settings" class="active">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>Tipos de objeto</h2>
+    <p class="hint">
+      Los tipos definidos aquí aparecen en el desplegable de la tabla de asignación.
+      La <strong>regla</strong> determina cómo se calcula el color del segmento.
+    </p>
+    <table id="types-table">
+      <thead>
+        <tr><th>Nombre</th><th>Regla</th><th>Segmentos que lo usan</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <form id="type-form">
+      <input type="hidden" id="t-original">
+      <div class="fields">
+        <label>Nombre <input type="text" id="t-name" required></label>
+        <label>Regla <select id="t-rule"></select></label>
+      </div>
+      <p class="hint" id="rule-help"></p>
+      <div class="actions">
+        <button type="submit" id="t-add">Añadir tipo</button>
+        <button type="button" id="t-update" disabled>Actualizar</button>
+        <button type="button" id="t-dismiss">Deseleccionar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Simulador PLC <small>(escribe registros Modbus, solo para pruebas)</small></h2>
+    <div id="sim-panel" class="sim-panel"></div>
+  </section>
+
+  <script src="/static/settings.js"></script>
+</body>
+</html>

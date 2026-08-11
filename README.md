@@ -7,20 +7,25 @@ original hecho en Node-RED — misma lógica, sin dependencia de Node-RED.
 ## Qué hace
 
 - Una **tabla de segmentos** mapea tramos de la tira LED (`start`–`end`, base 1) a
-  elementos eléctricos: `Incom`, `Breaker`, `Bus`, `Tie`, `Feeder`. Cada elemento
-  tiene una dirección Modbus (`station`).
-- Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento) el estado de cada
-  elemento y calcula su color:
+  elementos eléctricos. Cada elemento tiene un tipo y una dirección Modbus (`station`).
+- Los **tipos de objeto** se definen en la página *Settings* (`/settings`). Cada tipo
+  lleva una **regla de color**:
 
-  | Tipo | Regla |
+  | Regla | Comportamiento |
   |---|---|
-  | Breaker | `reg[2]=1` → Amarillo (disparado) · `reg[1]=1` → Rojo · `reg[0]=1` → Verde · si no → Gris |
-  | Feeder | Derivado: Rojo si el Bus está Rojo **y** el breaker aguas arriba (el segmento que termina justo antes) está Rojo; si no, Verde |
-  | Resto (Incom/Bus/Tie) | `reg[0]=1` → Rojo · si no → Verde |
+  | `simple` | `reg[0]=1` → Rojo · si no → Verde |
+  | `breaker` | `reg[2]=1` → Amarillo (disparado) · `reg[1]=1` → Rojo · `reg[0]=1` → Verde · si no → Gris |
+  | `bus` | Como `simple`, y marca el elemento como Bus de referencia para los derivados |
+  | `derived` | Sin lectura Modbus: Rojo si el Bus de referencia está Rojo **y** el elemento aguas arriba (el segmento que termina justo antes) está Rojo; si no, Verde |
 
-- La tira LED física se pinta con esos colores y una **web app** muestra en vivo el
-  estado (preview de la tira, tabla con CRUD, modo test que resalta en azul el
-  segmento seleccionado).
+  Tipos por defecto: Incom (`simple`), Breaker (`breaker`), Bus (`bus`), Tie (`simple`),
+  Feeder (`derived`).
+- Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento) y calcula el color
+  de cada segmento según la regla de su tipo.
+- La tira LED física se pinta con esos colores. La **web app** tiene dos páginas:
+  - `/` — mímico: estado en vivo de la tira y tabla de asignación de segmentos (CRUD,
+    modo test que resalta en azul el segmento seleccionado)
+  - `/settings` — definición de tipos de objeto y panel del simulador PLC
 
 ## Estructura
 
@@ -30,6 +35,7 @@ switchboard/        backend: FastAPI + WebSocket, poller Modbus, driver LED
   engine.py         ciclo de refresco y pintado (port del flujo 'Print')
   colors.py         lógica de colores (port del flujo 'get color')
   store.py          tabla de segmentos persistida en data/segments.json
+  typestore.py      tipos de objeto y su regla de color (data/types.json)
   leds.py           driver rpi_ws281x con fallback a mock (sin hardware/root)
   modbus_client.py  cliente Modbus TCP asíncrono
 simulator/plc_sim.py  simulador de PLC Modbus (reemplaza la pestaña 'Modbus Simulation')
@@ -80,10 +86,12 @@ sudo systemctl enable --now plc-simulator switchboard
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/api/state` | Estado completo: segmentos con color, píxeles, modo |
+| GET | `/api/state` | Estado completo: segmentos con color y regla, píxeles, modo |
 | GET/POST | `/api/segments` | Listar / añadir segmento |
 | PUT/DELETE | `/api/segments/{id}` | Actualizar / borrar segmento |
 | DELETE | `/api/segments` | Vaciar tabla |
+| GET/POST | `/api/types` | Listar / añadir tipos de objeto |
+| PUT/DELETE | `/api/types/{name}` | Actualizar (renombra en cascada) / borrar tipo (bloqueado si está en uso) |
 | POST | `/api/refresh` | Forzar una pasada de refresco |
 | POST | `/api/test-mode/{bool}` | Modo test (congela refresco, resalta selección) |
 | POST | `/api/select/{id}` | Seleccionar segmento (0 = ninguno) |
