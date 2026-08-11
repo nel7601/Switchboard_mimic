@@ -1,16 +1,17 @@
 {
-  "last_id": 11,
+  "last_id": 3,
   "segments": [
-    { "id": 1,  "start": 1,  "end": 2,  "element_id": 1 },
-    { "id": 2,  "start": 3,  "end": 4,  "element_id": 2 },
-    { "id": 3,  "start": 5,  "end": 8,  "element_id": 3 },
-    { "id": 4,  "start": 9,  "end": 10, "element_id": 4 },
-    { "id": 5,  "start": 11, "end": 12, "element_id": 5 },
-    { "id": 6,  "start": 13, "end": 14, "element_id": 6 },
-    { "id": 7,  "start": 15, "end": 18, "element_id": 7 },
-    { "id": 8,  "start": 19, "end": 20, "element_id": 8 },
-    { "id": 9,  "start": 21, "end": 22, "element_id": 9 },
-    { "id": 10, "start": 23, "end": 24, "element_id": 10 },
-    { "id": 11, "start": 25, "end": 26, "element_id": 11 }
+    {
+      "start": 1,
+      "end": 4,
+      "element_id": 1,
+      "id": 1
+    },
+    {
+      "start": 5,
+      "end": 9,
+      "element_id": 2,
+      "id": 3
+    }
   ]
 }

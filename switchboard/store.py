@@ -48,9 +48,27 @@ class SegmentStore:
         with self._lock:
             return next((dict(s) for s in self._segments if s["id"] == seg_id), None)
 
+    def _find_overlap(self, clean: dict, exclude_id: Optional[int] = None) -> Optional[dict]:
+        """Devuelve el segmento existente que solapa con el rango dado, si lo hay.
+        Debe llamarse con el lock tomado."""
+        lo, hi = min(clean["start"], clean["end"]), max(clean["start"], clean["end"])
+        for seg in self._segments:
+            if seg["id"] == exclude_id:
+                continue
+            s_lo, s_hi = min(seg["start"], seg["end"]), max(seg["start"], seg["end"])
+            if lo <= s_hi and s_lo <= hi:
+                return seg
+        return None
+
     def add(self, row: dict) -> dict:
         clean = self._validate(row)
         with self._lock:
+            other = self._find_overlap(clean)
+            if other:
+                raise ValueError(
+                    f"los LEDs {clean['start']}-{clean['end']} ya están asignados: "
+                    f"solapan con el segmento #{other['id']} (LED {other['start']}-{other['end']})"
+                )
             self._last_id += 1
             clean["id"] = self._last_id
             self._segments.append(clean)
@@ -60,6 +78,12 @@ class SegmentStore:
     def update(self, seg_id: int, row: dict) -> Optional[dict]:
         clean = self._validate(row)
         with self._lock:
+            other = self._find_overlap(clean, exclude_id=seg_id)
+            if other:
+                raise ValueError(
+                    f"los LEDs {clean['start']}-{clean['end']} ya están asignados: "
+                    f"solapan con el segmento #{other['id']} (LED {other['start']}-{other['end']})"
+                )
             for i, seg in enumerate(self._segments):
                 if seg["id"] == seg_id:
                     clean["id"] = seg_id
