@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Switchboard Mimic</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Switchboard Mimic</h1>
+    <div class="status">
+      <span id="conn-badge" class="badge">conectando…</span>
+      <span id="modbus-badge" class="badge">Modbus: —</span>
+      <label class="toggle">
+        <input type="checkbox" id="test-mode"> Modo test
+      </label>
+      <button id="btn-refresh">Refrescar</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>Tira LED</h2>
+    <div id="strip" class="strip"></div>
+  </section>
+
+  <section class="card">
+    <h2>Segmentos</h2>
+    <table id="segments-table">
+      <thead>
+        <tr><th>ID</th><th>Inicio</th><th>Fin</th><th>Descripción</th><th>Tipo</th><th>Estación</th><th>Color</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <form id="segment-form">
+      <input type="hidden" id="f-id">
+      <div class="fields">
+        <label>Inicio <input type="number" id="f-start" min="1" value="1" required></label>
+        <label>Fin <input type="number" id="f-end" min="1" value="1" required></label>
+        <label>Descripción <input type="text" id="f-description"></label>
+        <label>Tipo <select id="f-type"></select></label>
+        <label>Estación <input type="number" id="f-station" min="0" value="0"></label>
+      </div>
+      <div class="actions">
+        <button type="submit" id="btn-add">Añadir</button>
+        <button type="button" id="btn-update" disabled>Actualizar</button>
+        <button type="button" id="btn-delete" disabled>Borrar</button>
+        <button type="button" id="btn-dismiss">Deseleccionar</button>
+        <button type="button" id="btn-clear" class="danger">Vaciar tabla</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Simulador PLC <small>(escribe registros Modbus)</small></h2>
+    <div id="sim-panel" class="sim-panel"></div>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

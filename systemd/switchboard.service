@@ -1,0 +1,15 @@
+[Unit]
+Description=Switchboard Mimic (LED lighting mimic panel)
+After=network.target
+
+[Service]
+Type=simple
+# root es necesario para rpi_ws281x (PWM por /dev/mem en GPIO12)
+User=root
+WorkingDirectory=/home/nelson/Switchboard_mimic
+ExecStart=/home/nelson/Switchboard_mimic/.venv/bin/python -m switchboard.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

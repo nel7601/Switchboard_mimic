@@ -1,0 +1,14 @@
+[Unit]
+Description=Simulador PLC Modbus TCP para Switchboard Mimic
+After=network.target
+
+[Service]
+Type=simple
+User=nelson
+WorkingDirectory=/home/nelson/Switchboard_mimic
+ExecStart=/home/nelson/Switchboard_mimic/.venv/bin/python simulator/plc_sim.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
