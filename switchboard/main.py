@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Optional
 
 import uvicorn
@@ -16,9 +15,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import PROJECT_ROOT, load_config
+from .elementstore import ElementStore
 from .engine import MimicEngine
 from .leds import create_strip
-from .modbus_client import ModbusReader
+from .modbus_client import ModbusPool
 from .store import SegmentStore
 from .typestore import RULES, TypeStore
 
@@ -28,12 +28,12 @@ log = logging.getLogger("switchboard")
 cfg = load_config()
 store = SegmentStore(PROJECT_ROOT / cfg["data_file"])
 type_store = TypeStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "types"))
+element_store = ElementStore(PROJECT_ROOT / cfg["data_file"].replace("segments", "elements"))
 strip = create_strip(cfg["led"])
-modbus = ModbusReader(
-    cfg["modbus"]["host"], cfg["modbus"]["port"], cfg["modbus"]["unit"], cfg["modbus"]["timeout_s"]
-)
+modbus = ModbusPool(cfg["modbus"]["timeout_s"])
 engine = MimicEngine(
-    store, type_store, strip, modbus, cfg["modbus"]["registers_per_element"], cfg["poll_interval_s"]
+    store, element_store, type_store, strip, modbus,
+    cfg["modbus"]["registers_per_element"], cfg["poll_interval_s"],
 )
 
 ws_clients: set = set()
@@ -72,14 +72,20 @@ app = FastAPI(title="Switchboard Mimic", lifespan=lifespan)
 class SegmentIn(BaseModel):
     start: int
     end: int
-    description: str = ""
-    type: str = "Incom"
-    station: int = 0
+    element_id: int
 
 
-class RegisterWrite(BaseModel):
-    address: int
-    value: int
+class ModbusParams(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 502
+    unit: int = 1
+    address: int = 0
+
+
+class ElementIn(BaseModel):
+    name: str
+    type: str
+    modbus: ModbusParams = ModbusParams()
 
 
 class TypeIn(BaseModel):
@@ -87,26 +93,36 @@ class TypeIn(BaseModel):
     rule: str = "simple"
 
 
-# ---------- API ----------
+class RegisterWrite(BaseModel):
+    address: int
+    value: int
+    host: Optional[str] = None
+    port: Optional[int] = None
+    unit: Optional[int] = None
+
+
+# ---------- estado ----------
 
 @app.get("/api/state")
 def get_state():
     return engine.state()
 
 
+# ---------- segmentos (vista Mímico) ----------
+
 @app.get("/api/segments")
 def list_segments():
-    return {"segments": store.list(), "types": [t["name"] for t in type_store.list()]}
+    return {"segments": store.list(), "elements": element_store.list()}
 
 
-def _check_type(name: str):
-    if not type_store.exists(name):
-        raise HTTPException(400, f"el tipo {name!r} no está definido (ver Settings)")
+def _check_element(elem_id: int):
+    if element_store.get(elem_id) is None:
+        raise HTTPException(400, f"el elemento id={elem_id} no está definido (ver Elementos)")
 
 
 @app.post("/api/segments")
 async def add_segment(seg: SegmentIn):
-    _check_type(seg.type)
+    _check_element(seg.element_id)
     try:
         row = store.add(seg.model_dump())
     except ValueError as exc:
@@ -117,7 +133,7 @@ async def add_segment(seg: SegmentIn):
 
 @app.put("/api/segments/{seg_id}")
 async def update_segment(seg_id: int, seg: SegmentIn):
-    _check_type(seg.type)
+    _check_element(seg.element_id)
     try:
         row = store.update(seg_id, seg.model_dump())
     except ValueError as exc:
@@ -146,11 +162,67 @@ async def clear_segments():
     return {"ok": True}
 
 
+# ---------- elementos ----------
+
+@app.get("/api/elements")
+def list_elements():
+    types = {t["name"]: t["rule"] for t in type_store.list()}
+    rows = []
+    for e in element_store.list():
+        row = dict(e)
+        row["rule"] = types.get(e["type"], "simple")
+        row["used_by"] = store.count_by_element(e["id"])
+        rows.append(row)
+    return {"elements": rows, "types": type_store.list()}
+
+
+@app.post("/api/elements")
+async def add_element(elem: ElementIn):
+    if not type_store.exists(elem.type):
+        raise HTTPException(400, f"el tipo {elem.type!r} no está definido (ver Settings)")
+    try:
+        row = element_store.add(elem.model_dump())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    await engine.refresh()
+    return row
+
+
+@app.put("/api/elements/{elem_id}")
+async def update_element(elem_id: int, elem: ElementIn):
+    if not type_store.exists(elem.type):
+        raise HTTPException(400, f"el tipo {elem.type!r} no está definido (ver Settings)")
+    try:
+        row = element_store.update(elem_id, elem.model_dump())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if row is None:
+        raise HTTPException(404, "elemento no encontrado")
+    await engine.refresh()
+    return row
+
+
+@app.delete("/api/elements/{elem_id}")
+async def delete_element(elem_id: int):
+    in_use = store.count_by_element(elem_id)
+    if in_use:
+        raise HTTPException(400, f"el elemento está asignado a {in_use} segmento(s) del mímico")
+    if not element_store.delete(elem_id):
+        raise HTTPException(404, "elemento no encontrado")
+    await engine.refresh()
+    return {"ok": True}
+
+
 # ---------- tipos (Settings) ----------
 
 @app.get("/api/types")
 def list_types():
-    return {"types": type_store.list(), "rules": RULES}
+    rows = []
+    for t in type_store.list():
+        row = dict(t)
+        row["used_by"] = element_store.count_by_type(t["name"])
+        rows.append(row)
+    return {"types": rows, "rules": RULES}
 
 
 @app.post("/api/types")
@@ -172,20 +244,22 @@ async def update_type(name: str, t: TypeIn):
     if row is None:
         raise HTTPException(404, "tipo no encontrado")
     if row["name"] != name:
-        store.rename_type(name, row["name"])
+        element_store.rename_type(name, row["name"])
     await engine.refresh()
     return row
 
 
 @app.delete("/api/types/{name}")
 async def delete_type(name: str):
-    in_use = store.count_by_type(name)
+    in_use = element_store.count_by_type(name)
     if in_use:
-        raise HTTPException(400, f"el tipo {name!r} está asignado a {in_use} segmento(s)")
+        raise HTTPException(400, f"el tipo {name!r} lo usan {in_use} elemento(s)")
     if not type_store.delete(name):
         raise HTTPException(404, "tipo no encontrado")
     return {"ok": True}
 
+
+# ---------- control ----------
 
 @app.post("/api/refresh")
 async def manual_refresh():
@@ -208,8 +282,11 @@ def select_segment(seg_id: int):
 @app.post("/api/modbus/write")
 async def modbus_write(req: RegisterWrite):
     """Escritura directa de un registro (para pruebas / simulación de estados del PLC)."""
+    host = req.host or cfg["modbus"]["host"]
+    port = req.port or cfg["modbus"]["port"]
+    unit = req.unit or cfg["modbus"]["unit"]
     try:
-        await modbus.write_register(req.address, req.value)
+        await modbus.write_register(host, port, unit, req.address, req.value)
     except Exception as exc:
         raise HTTPException(502, f"Modbus: {exc}")
     return {"ok": True}
@@ -240,6 +317,11 @@ app.mount("/static", StaticFiles(directory=web_dir), name="static")
 @app.get("/")
 def index():
     return FileResponse(web_dir / "index.html")
+
+
+@app.get("/elements")
+def elements_page():
+    return FileResponse(web_dir / "elements.html")
 
 
 @app.get("/settings")

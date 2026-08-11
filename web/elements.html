@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elementos — Switchboard Mimic</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Switchboard Mimic</h1>
+      <nav>
+        <a href="/">Mímico</a>
+        <a href="/elements" class="active">Elementos</a>
+        <a href="/settings">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>Elementos del mímico</h2>
+    <p class="hint">
+      Define aquí cada elemento del cuadro (Mimic A, Main B, Tie…) con su tipo y sus
+      parámetros Modbus. En la vista Mímico solo tendrás que asociar un rango de LEDs
+      a uno de estos elementos.
+    </p>
+    <table id="elements-table">
+      <thead>
+        <tr>
+          <th>ID</th><th>Nombre</th><th>Tipo</th><th>IP</th><th>Puerto</th>
+          <th>Device ID</th><th>Dirección</th><th>Segmentos</th><th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <form id="element-form">
+      <input type="hidden" id="e-id">
+      <div class="fields">
+        <label>Nombre <input type="text" id="e-name" required></label>
+        <label>Tipo <select id="e-type"></select></label>
+      </div>
+      <div class="fields" id="modbus-fields">
+        <label>IP <input type="text" id="e-host" value="127.0.0.1"></label>
+        <label>Puerto <input type="number" id="e-port" min="1" max="65535" value="502"></label>
+        <label>Device ID <input type="number" id="e-unit" min="0" max="255" value="1"></label>
+        <label>Dirección Modbus <input type="number" id="e-address" min="0" value="0"></label>
+      </div>
+      <p class="hint" id="modbus-note" hidden>
+        Este tipo usa la regla <code>derived</code>: su color se deriva de otros
+        elementos, no necesita parámetros Modbus.
+      </p>
+      <div class="actions">
+        <button type="submit" id="e-add">Añadir elemento</button>
+        <button type="button" id="e-update" disabled>Actualizar</button>
+        <button type="button" id="e-dismiss">Deseleccionar</button>
+      </div>
+    </form>
+  </section>
+
+  <script src="/static/elements.js"></script>
+</body>
+</html>

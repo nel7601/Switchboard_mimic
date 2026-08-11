@@ -7,20 +7,20 @@ const RULE_INFO = {
   derived: 'Sin lectura Modbus: Rojo si el Bus de referencia está Rojo y el elemento aguas arriba (el segmento que termina justo antes) está Rojo; si no → Verde.',
 };
 
-const SIM_REGISTERS = [
-  { addr: 104, name: 'Incom (104)' },
-  { addr: 105, name: 'Breaker Utility: cerrado (105)' },
-  { addr: 106, name: 'Breaker Utility: abierto (106)' },
-  { addr: 107, name: 'Breaker Utility: disparado (107)' },
-  { addr: 110, name: 'Bus A (110)' },
-  { addr: 115, name: 'Breaker Feeder: cerrado (115)' },
-  { addr: 116, name: 'Breaker Feeder: abierto (116)' },
-  { addr: 117, name: 'Breaker Feeder: disparado (117)' },
-];
+// Offsets sobre la dirección base del elemento, según su regla
+const SIM_OFFSETS = {
+  breaker: [
+    { off: 0, label: 'cerrado' },
+    { off: 1, label: 'abierto' },
+    { off: 2, label: 'disparado' },
+  ],
+  simple: [{ off: 0, label: 'estado' }],
+  bus: [{ off: 0, label: 'estado' }],
+};
 
 let types = [];
 let rules = [];
-let segments = [];
+let elements = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -33,11 +33,11 @@ function escapeHtml(s) {
 /* ---------- tipos ---------- */
 
 async function loadAll() {
-  const [tRes, sRes] = await Promise.all([fetch('/api/types'), fetch('/api/segments')]);
+  const [tRes, eRes] = await Promise.all([fetch('/api/types'), fetch('/api/elements')]);
   const tData = await tRes.json();
   types = tData.types;
   rules = tData.rules;
-  segments = (await sRes.json()).segments;
+  elements = (await eRes.json()).elements;
 
   const sel = $('t-rule');
   if (!sel.options.length) {
@@ -46,17 +46,14 @@ async function loadAll() {
     sel.onchange();
   }
   renderTypes();
-}
-
-function usageCount(name) {
-  return segments.filter((s) => s.type === name).length;
+  buildSimPanel();
 }
 
 function renderTypes() {
   const tbody = document.querySelector('#types-table tbody');
   tbody.innerHTML = '';
   for (const t of types) {
-    const used = usageCount(t.name);
+    const used = t.used_by;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${escapeHtml(t.name)}</td>
@@ -126,29 +123,37 @@ $('t-dismiss').onclick = dismissType;
 
 function buildSimPanel() {
   const panel = $('sim-panel');
-  for (const reg of SIM_REGISTERS) {
-    const row = document.createElement('div');
-    row.className = 'sim-row';
-    row.innerHTML = `<span class="name">${reg.name}</span>`;
-    for (const val of [1, 0]) {
-      const btn = document.createElement('button');
-      btn.textContent = val ? 'ON (1)' : 'OFF (0)';
-      if (val) btn.classList.add('on');
-      btn.onclick = async () => {
-        await fetch('/api/modbus/write', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: reg.addr, value: val }),
-        });
-        await fetch('/api/refresh', { method: 'POST' });
-      };
-      row.appendChild(btn);
+  panel.innerHTML = '';
+  for (const e of elements) {
+    const offsets = SIM_OFFSETS[e.rule];
+    if (!offsets) continue; // derived: sin registros propios
+    const mb = e.modbus;
+    for (const { off, label } of offsets) {
+      const addr = mb.address + off;
+      const row = document.createElement('div');
+      row.className = 'sim-row';
+      row.innerHTML = `<span class="name">${escapeHtml(e.name)}: ${label} (${escapeHtml(mb.host)} @${addr})</span>`;
+      for (const val of [1, 0]) {
+        const btn = document.createElement('button');
+        btn.textContent = val ? 'ON (1)' : 'OFF (0)';
+        if (val) btn.classList.add('on');
+        btn.onclick = async () => {
+          await fetch('/api/modbus/write', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              host: mb.host, port: mb.port, unit: mb.unit, address: addr, value: val,
+            }),
+          });
+          await fetch('/api/refresh', { method: 'POST' });
+        };
+        row.appendChild(btn);
+      }
+      panel.appendChild(row);
     }
-    panel.appendChild(row);
   }
 }
 
 /* ---------- init ---------- */
 
 loadAll();
-buildSimPanel();

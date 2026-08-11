@@ -1,0 +1,16 @@
+{
+  "last_id": 11,
+  "elements": [
+    { "id": 1,  "name": "Mimic A",   "type": "Incom",   "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 104 } },
+    { "id": 2,  "name": "Main A",    "type": "Breaker", "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 105 } },
+    { "id": 3,  "name": "Bus A",     "type": "Bus",     "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 110 } },
+    { "id": 4,  "name": "Feeder A1", "type": "Breaker", "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 115 } },
+    { "id": 5,  "name": "Feeder A2", "type": "Breaker", "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 125 } },
+    { "id": 6,  "name": "Tie",       "type": "Tie",     "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 120 } },
+    { "id": 7,  "name": "Bus B",     "type": "Bus",     "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 160 } },
+    { "id": 8,  "name": "Feeder B1", "type": "Breaker", "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 165 } },
+    { "id": 9,  "name": "Feeder B2", "type": "Breaker", "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 175 } },
+    { "id": 10, "name": "Main B",    "type": "Breaker", "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 155 } },
+    { "id": 11, "name": "Mimic B",   "type": "Incom",   "modbus": { "host": "127.0.0.1", "port": 5020, "unit": 1, "address": 154 } }
+  ]
+}

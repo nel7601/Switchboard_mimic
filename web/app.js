@@ -1,4 +1,4 @@
-/* Switchboard Mimic — frontend */
+/* Switchboard Mimic — vista Mímico */
 
 const COLOR_RGB = {
   Red: 'rgb(255,0,0)', Yellow: 'rgb(255,255,0)', Green: 'rgb(0,255,0)',
@@ -6,10 +6,20 @@ const COLOR_RGB = {
 };
 
 let segments = [];
+let elements = [];
 let selectedId = null;
-let types = [];
 
 const $ = (id) => document.getElementById(id);
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+function elementById(id) {
+  return elements.find((e) => e.id === id);
+}
 
 /* ---------- WebSocket ---------- */
 
@@ -39,7 +49,6 @@ function applyState(state) {
   else if (state.modbus_ok) setBadge('modbus-badge', 'Modbus: OK', 'ok');
   else setBadge('modbus-badge', 'Modbus: error', 'err');
   $('test-mode').checked = state.test_mode;
-  // colores calculados por el motor
   const colorById = {};
   for (const row of state.segments) colorById[row.id] = row.color;
   document.querySelectorAll('#segments-table tbody tr').forEach((tr) => {
@@ -75,13 +84,15 @@ async function loadSegments() {
   const res = await fetch('/api/segments');
   const data = await res.json();
   segments = data.segments;
-  if (JSON.stringify(types) !== JSON.stringify(data.types)) {
-    types = data.types;
-    const sel = $('f-type');
-    const current = sel.value;
-    sel.innerHTML = types.map((t) => `<option>${t}</option>`).join('');
-    if (types.includes(current)) sel.value = current;
-  }
+  elements = data.elements;
+
+  const sel = $('f-element');
+  const current = sel.value;
+  sel.innerHTML = elements
+    .map((e) => `<option value="${e.id}">${escapeHtml(e.name)}</option>`)
+    .join('');
+  if (elements.some((e) => String(e.id) === current)) sel.value = current;
+
   renderTable();
 }
 
@@ -89,22 +100,18 @@ function renderTable() {
   const tbody = document.querySelector('#segments-table tbody');
   tbody.innerHTML = '';
   for (const seg of segments) {
+    const elem = elementById(seg.element_id);
     const tr = document.createElement('tr');
     tr.dataset.id = seg.id;
     if (seg.id === selectedId) tr.classList.add('selected');
     tr.innerHTML = `
       <td>${seg.id}</td><td>${seg.start}</td><td>${seg.end}</td>
-      <td>${escapeHtml(seg.description)}</td><td>${seg.type}</td><td>${seg.station}</td>
+      <td>${elem ? escapeHtml(elem.name) : '—'}</td>
+      <td>${elem ? escapeHtml(elem.type) : '—'}</td>
       <td><span class="chip"></span></td>`;
     tr.onclick = () => selectRow(seg);
     tbody.appendChild(tr);
   }
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
 }
 
 async function selectRow(seg) {
@@ -112,9 +119,7 @@ async function selectRow(seg) {
   $('f-id').value = seg.id;
   $('f-start').value = seg.start;
   $('f-end').value = seg.end;
-  $('f-description').value = seg.description;
-  $('f-type').value = seg.type;
-  $('f-station').value = seg.station;
+  $('f-element').value = seg.element_id;
   $('btn-update').disabled = false;
   $('btn-delete').disabled = false;
   renderTable();
@@ -134,9 +139,7 @@ function formPayload() {
   return {
     start: Number($('f-start').value),
     end: Number($('f-end').value),
-    description: $('f-description').value,
-    type: $('f-type').value,
-    station: Number($('f-station').value),
+    element_id: Number($('f-element').value),
   };
 }
 
@@ -144,21 +147,23 @@ function formPayload() {
 
 $('segment-form').onsubmit = async (ev) => {
   ev.preventDefault();
-  await fetch('/api/segments', {
+  const res = await fetch('/api/segments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(formPayload()),
   });
+  if (!res.ok) alert((await res.json()).detail);
   await loadSegments();
 };
 
 $('btn-update').onclick = async () => {
   if (!selectedId) return;
-  await fetch(`/api/segments/${selectedId}`, {
+  const res = await fetch(`/api/segments/${selectedId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(formPayload()),
   });
+  if (!res.ok) alert((await res.json()).detail);
   await loadSegments();
 };
 

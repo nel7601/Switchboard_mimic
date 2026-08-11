@@ -12,6 +12,7 @@
       <h1>Switchboard Mimic</h1>
       <nav>
         <a href="/">Mímico</a>
+        <a href="/elements">Elementos</a>
         <a href="/settings" class="active">Settings</a>
       </nav>
     </div>
@@ -20,12 +21,13 @@
   <section class="card">
     <h2>Tipos de objeto</h2>
     <p class="hint">
-      Los tipos definidos aquí aparecen en el desplegable de la tabla de asignación.
-      La <strong>regla</strong> determina cómo se calcula el color del segmento.
+      Los tipos definidos aquí se asignan a los elementos en la vista
+      <a href="/elements">Elementos</a>. La <strong>regla</strong> determina cómo se
+      calcula el color.
     </p>
     <table id="types-table">
       <thead>
-        <tr><th>Nombre</th><th>Regla</th><th>Segmentos que lo usan</th><th></th></tr>
+        <tr><th>Nombre</th><th>Regla</th><th>Elementos que lo usan</th><th></th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -46,7 +48,7 @@
   </section>
 
   <section class="card">
-    <h2>Simulador PLC <small>(escribe registros Modbus, solo para pruebas)</small></h2>
+    <h2>Simulador PLC <small>(escribe registros Modbus de cada elemento, solo para pruebas)</small></h2>
     <div id="sim-panel" class="sim-panel"></div>
   </section>
 

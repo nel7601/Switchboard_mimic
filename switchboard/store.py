@@ -1,15 +1,15 @@
-"""Persistencia de la tabla de segmentos (equivale a tableAData + persist de Node-RED)."""
+"""Persistencia de la tabla de asignación del mímico.
+
+Cada fila asocia un tramo de LEDs (`start`–`end`, base 1) a un elemento
+definido en la vista de Elementos (`element_id`).
+"""
 import json
 import threading
 from pathlib import Path
 from typing import Optional
 
+
 class SegmentStore:
-    """Tabla de segmentos: cada fila mapea un tramo de LEDs a un elemento eléctrico.
-
-    Campos: id, start, end (LEDs, base 1), description, type, station (dirección Modbus).
-    """
-
     def __init__(self, data_file: Path):
         self._file = data_file
         self._lock = threading.Lock()
@@ -32,19 +32,13 @@ class SegmentStore:
 
     @staticmethod
     def _validate(row: dict) -> dict:
-        seg_type = str(row.get("type", "")).strip()
-        if not seg_type:
-            raise ValueError("el segmento necesita un tipo")
         start, end = int(row.get("start", 1)), int(row.get("end", 1))
         if start < 1 or end < 1:
             raise ValueError("start/end deben ser >= 1")
-        return {
-            "start": start,
-            "end": end,
-            "description": str(row.get("description", "")),
-            "type": seg_type,
-            "station": int(row.get("station", 0)),
-        }
+        element_id = int(row.get("element_id", 0))
+        if element_id < 1:
+            raise ValueError("el segmento necesita un elemento asociado")
+        return {"start": start, "end": end, "element_id": element_id}
 
     def list(self) -> list[dict]:
         with self._lock:
@@ -89,18 +83,6 @@ class SegmentStore:
             self._last_id = 0
             self._save()
 
-    def count_by_type(self, type_name: str) -> int:
+    def count_by_element(self, element_id: int) -> int:
         with self._lock:
-            return sum(1 for s in self._segments if s["type"] == type_name)
-
-    def rename_type(self, old: str, new: str) -> int:
-        """Cascada al renombrar un tipo en Settings. Devuelve filas afectadas."""
-        with self._lock:
-            n = 0
-            for seg in self._segments:
-                if seg["type"] == old:
-                    seg["type"] = new
-                    n += 1
-            if n:
-                self._save()
-            return n
+            return sum(1 for s in self._segments if s["element_id"] == element_id)

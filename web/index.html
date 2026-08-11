@@ -12,6 +12,7 @@
       <h1>Switchboard Mimic</h1>
       <nav>
         <a href="/" class="active">Mímico</a>
+        <a href="/elements">Elementos</a>
         <a href="/settings">Settings</a>
       </nav>
     </div>
@@ -32,9 +33,13 @@
 
   <section class="card">
     <h2>Asignación de segmentos</h2>
+    <p class="hint">
+      Asocia un rango de LEDs a un elemento. Los elementos y sus parámetros Modbus se
+      definen en la vista <a href="/elements">Elementos</a>.
+    </p>
     <table id="segments-table">
       <thead>
-        <tr><th>ID</th><th>Inicio</th><th>Fin</th><th>Descripción</th><th>Tipo</th><th>Estación</th><th>Color</th></tr>
+        <tr><th>ID</th><th>LED inicio</th><th>LED fin</th><th>Elemento</th><th>Tipo</th><th>Color</th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -42,11 +47,9 @@
     <form id="segment-form">
       <input type="hidden" id="f-id">
       <div class="fields">
-        <label>Inicio <input type="number" id="f-start" min="1" value="1" required></label>
-        <label>Fin <input type="number" id="f-end" min="1" value="1" required></label>
-        <label>Descripción <input type="text" id="f-description"></label>
-        <label>Tipo <select id="f-type"></select></label>
-        <label>Estación <input type="number" id="f-station" min="0" value="0"></label>
+        <label>LED inicio <input type="number" id="f-start" min="1" value="1" required></label>
+        <label>LED fin <input type="number" id="f-end" min="1" value="1" required></label>
+        <label>Elemento <select id="f-element"></select></label>
       </div>
       <div class="actions">
         <button type="submit" id="btn-add">Añadir</button>

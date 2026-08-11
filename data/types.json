@@ -10,15 +10,19 @@
     },
     {
       "name": "Tie",
-      "rule": "simple"
+      "rule": "breaker"
     },
     {
       "name": "Feeder",
-      "rule": "derived"
+      "rule": "breaker"
     },
     {
       "name": "Breaker",
       "rule": "breaker"
+    },
+    {
+      "name": "Load",
+      "rule": "derived"
     }
   ]
 }

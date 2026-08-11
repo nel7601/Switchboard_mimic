@@ -1,16 +1,17 @@
 """Ciclo de refresco del mímico (port del flujo 'Print' de Node-RED).
 
-Modo RUN : lee Modbus por cada segmento, calcula color y pinta la tira.
-Modo TEST: congela el refresco y resalta en azul el segmento seleccionado
-           (equivale al switch 'Testing position' + selección de fila).
+Modo RUN : resuelve cada segmento a su elemento, lee Modbus con los parámetros
+           del elemento, calcula color y pinta la tira.
+Modo TEST: congela el refresco y resalta en azul el segmento seleccionado.
 """
 import asyncio
 import logging
 from typing import Callable, Optional
 
 from .colors import COLOR_RGB, color_from_registers, derived_color
+from .elementstore import ElementStore
 from .leds import BaseStrip
-from .modbus_client import ModbusReader
+from .modbus_client import ModbusPool
 from .store import SegmentStore
 from .typestore import TypeStore
 
@@ -21,13 +22,15 @@ class MimicEngine:
     def __init__(
         self,
         store: SegmentStore,
+        elements: ElementStore,
         types: TypeStore,
         strip: BaseStrip,
-        modbus: ModbusReader,
+        modbus: ModbusPool,
         registers_per_element: int = 5,
         poll_interval_s: float = 2.0,
     ):
         self.store = store
+        self.elements = elements
         self.types = types
         self.strip = strip
         self.modbus = modbus
@@ -35,10 +38,11 @@ class MimicEngine:
         self._interval = poll_interval_s
         self.test_mode = False
         self.selected_id: Optional[int] = None
-        self.resolved: list[dict] = []  # última tabla con colores (extTableAData)
+        self.resolved: list[dict] = []  # última tabla con colores
         self.modbus_ok: Optional[bool] = None
         self.on_update: Optional[Callable] = None  # callback para el websocket
         self._task: Optional[asyncio.Task] = None
+        self._refresh_lock: Optional[asyncio.Lock] = None  # perezoso (Python 3.9)
 
     # ---------- ciclo principal ----------
 
@@ -61,20 +65,38 @@ class MimicEngine:
             await asyncio.sleep(self._interval)
 
     async def refresh(self):
-        """Una pasada completa: resolver color de cada segmento y pintar la tira."""
+        """Una pasada completa: resolver color de cada segmento y pintar la tira.
+
+        Serializada: el poller y las llamadas de la API no se interfieren."""
+        if self._refresh_lock is None:
+            self._refresh_lock = asyncio.Lock()
+        async with self._refresh_lock:
+            await self._refresh_inner()
+
+    async def _refresh_inner(self):
         resolved = []
         ok = True
         for seg in self.store.list():
             row = dict(seg)
-            row["rule"] = self.types.rule_for(seg["type"])
+            elem = self.elements.get(seg["element_id"])
+            if elem is None:
+                row.update(element="?", type="?", rule="simple", color="Gray")
+                resolved.append(row)
+                continue
+            row["element"] = elem["name"]
+            row["type"] = elem["type"]
+            row["rule"] = self.types.rule_for(elem["type"])
             try:
                 if row["rule"] == "derived":
                     row["color"] = derived_color(resolved, seg["start"])
                 else:
-                    regs = await self.modbus.read_holding(seg["station"], self._reg_count)
+                    mb = elem["modbus"]
+                    regs = await self.modbus.read_holding(
+                        mb["host"], mb["port"], mb["unit"], mb["address"], self._reg_count
+                    )
                     row["color"] = color_from_registers(row["rule"], regs)
             except Exception as exc:
-                log.warning("Segmento %s (addr %s): %s", seg["id"], seg["station"], exc)
+                log.warning("Segmento %s (%s): %s", seg["id"], elem["name"], exc)
                 row["color"] = "Gray"
                 ok = False
             resolved.append(row)

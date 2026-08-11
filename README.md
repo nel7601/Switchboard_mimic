@@ -6,8 +6,12 @@ original hecho en Node-RED — misma lógica, sin dependencia de Node-RED.
 
 ## Qué hace
 
-- Una **tabla de segmentos** mapea tramos de la tira LED (`start`–`end`, base 1) a
-  elementos eléctricos. Cada elemento tiene un tipo y una dirección Modbus (`station`).
+- Los **elementos** del cuadro (Mimic A, Main B, Tie, Bus A, Feeder A1, …) se definen
+  en la vista *Elementos* (`/elements`): cada uno con su tipo y sus parámetros Modbus
+  propios — IP, puerto, device/unit ID y dirección del primer registro. Cada elemento
+  puede vivir en un PLC distinto (pool de conexiones por host).
+- Una **tabla de segmentos** (vista *Mímico*, `/`) asocia tramos de la tira LED
+  (`start`–`end`, base 1) a esos elementos: solo rango + elemento.
 - Los **tipos de objeto** se definen en la página *Settings* (`/settings`). Cada tipo
   lleva una **regla de color**:
 
@@ -20,12 +24,15 @@ original hecho en Node-RED — misma lógica, sin dependencia de Node-RED.
 
   Tipos por defecto: Incom (`simple`), Breaker (`breaker`), Bus (`bus`), Tie (`simple`),
   Feeder (`derived`).
-- Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento) y calcula el color
-  de cada segmento según la regla de su tipo.
-- La tira LED física se pinta con esos colores. La **web app** tiene dos páginas:
-  - `/` — mímico: estado en vivo de la tira y tabla de asignación de segmentos (CRUD,
-    modo test que resalta en azul el segmento seleccionado)
-  - `/settings` — definición de tipos de objeto y panel del simulador PLC
+- Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento, con los parámetros
+  de conexión de cada elemento) y calcula el color de cada segmento según la regla de
+  su tipo.
+- La tira LED física se pinta con esos colores. La **web app** tiene tres páginas:
+  - `/` — mímico: estado en vivo de la tira y asignación rango de LEDs → elemento
+    (CRUD, modo test que resalta en azul el segmento seleccionado)
+  - `/elements` — elementos del cuadro con su tipo y parámetros Modbus
+  - `/settings` — tipos de objeto y panel del simulador PLC (generado a partir de los
+    elementos definidos)
 
 ## Estructura
 
@@ -34,7 +41,8 @@ switchboard/        backend: FastAPI + WebSocket, poller Modbus, driver LED
   main.py           API REST + WS + estáticos
   engine.py         ciclo de refresco y pintado (port del flujo 'Print')
   colors.py         lógica de colores (port del flujo 'get color')
-  store.py          tabla de segmentos persistida en data/segments.json
+  store.py          asignación LEDs→elemento persistida en data/segments.json
+  elementstore.py   elementos con tipo y parámetros Modbus (data/elements.json)
   typestore.py      tipos de objeto y su regla de color (data/types.json)
   leds.py           driver rpi_ws281x con fallback a mock (sin hardware/root)
   modbus_client.py  cliente Modbus TCP asíncrono
@@ -90,6 +98,8 @@ sudo systemctl enable --now plc-simulator switchboard
 | GET/POST | `/api/segments` | Listar / añadir segmento |
 | PUT/DELETE | `/api/segments/{id}` | Actualizar / borrar segmento |
 | DELETE | `/api/segments` | Vaciar tabla |
+| GET/POST | `/api/elements` | Listar / añadir elementos (nombre, tipo, params Modbus) |
+| PUT/DELETE | `/api/elements/{id}` | Actualizar / borrar elemento (bloqueado si está asignado) |
 | GET/POST | `/api/types` | Listar / añadir tipos de objeto |
 | PUT/DELETE | `/api/types/{name}` | Actualizar (renombra en cascada) / borrar tipo (bloqueado si está en uso) |
 | POST | `/api/refresh` | Forzar una pasada de refresco |
