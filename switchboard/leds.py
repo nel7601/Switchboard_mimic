@@ -1,13 +1,13 @@
-"""Drivers de tiras LED.
+"""LED strip drivers.
 
-- Tiras locales WS2812B (máx. 2): PWM0 (GPIO 12/18) y PWM1 (GPIO 13/19) comparten
-  el periférico PWM y el canal DMA, así que ambas se manejan desde una única
-  inicialización ws2811 usando la API de bajo nivel de rpi_ws281x. Fallback a mock
-  cuando no hay hardware/root.
-- Tiras remotas WLED (ESP32): protocolo UDP realtime DNRGB de WLED, sin
-  dependencias. Fire-and-forget: si el controlador no responde no bloquea nada.
+- Local WS2812B strips (max. 2): PWM0 (GPIO 12/18) and PWM1 (GPIO 13/19) share
+  the PWM peripheral and the DMA channel, so both are driven from a single
+  ws2811 initialization using the low-level rpi_ws281x API. Falls back to a
+  mock when there is no hardware/root access.
+- Remote WLED strips (ESP32): WLED's DNRGB realtime UDP protocol, dependency
+  free. Fire-and-forget: an unreachable controller never blocks anything.
 
-StripManager unifica ambas y direcciona por id de tira (StripStore).
+StripManager unifies both and routes rendering by strip id (StripStore).
 """
 import logging
 import socket
@@ -15,7 +15,7 @@ import socket
 log = logging.getLogger(__name__)
 
 LED_FREQ_HZ = 800000
-LED_DMA = 10  # mismo DMA que usaba neopix.py de Node-RED
+LED_DMA = 10  # same DMA channel the Node-RED neopix.py used
 LED_INVERT = 0
 
 
@@ -40,7 +40,7 @@ class BaseBank:
 
 
 class MockBank(BaseBank):
-    """Sin hardware: el estado queda en memoria y se sirve al preview web."""
+    """No hardware: state stays in memory and feeds the web preview."""
 
     def _show(self, idx: int):
         pass
@@ -55,11 +55,11 @@ class Ws281xBank(BaseBank):
         self._leds = ws.new_ws2811_t()
         self._channels = []
 
-        # Los dos canales del ws2811 deben configurarse siempre; el que no se
-        # usa queda con count=0.
+        # Both ws2811 channels must always be configured; an unused one is
+        # left with count=0.
         by_channel = {s["channel"]: s for s in strips_cfg}
         if len(by_channel) != len(strips_cfg):
-            raise ValueError("cada tira debe usar un canal PWM distinto (0 y 1)")
+            raise ValueError("each strip must use a different PWM channel (0 and 1)")
         for ch_num in (0, 1):
             channel = ws.ws2811_channel_get(self._leds, ch_num)
             s = by_channel.get(ch_num)
@@ -75,9 +75,9 @@ class Ws281xBank(BaseBank):
         resp = ws.ws2811_init(self._leds)
         if resp != 0:
             raise RuntimeError(
-                f"ws2811_init falló ({resp}): {ws.ws2811_get_return_t_str(resp)}"
+                f"ws2811_init failed ({resp}): {ws.ws2811_get_return_t_str(resp)}"
             )
-        # canal ws de cada tira, en el mismo orden que strips_cfg
+        # ws channel of each strip, in the same order as strips_cfg
         self._channels = [
             ws.ws2811_channel_get(self._leds, s["channel"]) for s in strips_cfg
         ]
@@ -88,29 +88,29 @@ class Ws281xBank(BaseBank):
             self._ws.ws2811_led_set(channel, i, (r << 16) | (g << 8) | b)
         resp = self._ws.ws2811_render(self._leds)
         if resp != 0:
-            log.warning("ws2811_render devolvió %s", resp)
+            log.warning("ws2811_render returned %s", resp)
 
 
 def create_bank(strips_cfg: list) -> BaseBank:
     try:
         bank = Ws281xBank(strips_cfg)
         desc = ", ".join(
-            f"tira {i+1}: {s['count']} LEDs GPIO{s['gpio']} (PWM{s['channel']})"
+            f"strip {i+1}: {s['count']} LEDs GPIO{s['gpio']} (PWM{s['channel']})"
             for i, s in enumerate(strips_cfg)
         )
-        log.info("Banco WS2812B inicializado — %s", desc)
+        log.info("WS2812B bank initialized — %s", desc)
         return bank
     except Exception as exc:
-        log.warning("Sin acceso al hardware LED (%s) — usando driver simulado", exc)
+        log.warning("No LED hardware access (%s) — using mock driver", exc)
         return MockBank([s["count"] for s in strips_cfg])
 
 
 class WledSender:
-    """Envía el buffer completo a un controlador WLED por UDP (protocolo DNRGB).
+    """Sends the full buffer to a WLED controller over UDP (DNRGB protocol).
 
-    DNRGB: [4, timeout, idx_alto, idx_bajo, r,g,b, r,g,b, ...] — permite trocear
-    tiras largas en varios paquetes (máx. 489 LEDs por datagrama).
-    timeout=255 mantiene WLED en modo realtime indefinidamente.
+    DNRGB: [4, timeout, idx_high, idx_low, r,g,b, r,g,b, ...] — allows chunking
+    long strips into several packets (max. 489 LEDs per datagram).
+    timeout=255 keeps WLED in realtime mode indefinitely.
     """
 
     MAX_LEDS_PER_PACKET = 489
@@ -135,20 +135,20 @@ class WledSender:
                 self._sock.sendto(data, (self.host, self.port))
                 i += len(chunk)
         except OSError as exc:
-            log.warning("WLED %s:%s no accesible: %s", self.host, self.port, exc)
+            log.warning("WLED %s:%s unreachable: %s", self.host, self.port, exc)
 
     def close(self):
         self._sock.close()
 
 
 class StripManager:
-    """Direcciona el pintado por id de tira: PWM locales (banco ws2811 único,
-    creado al arrancar) + tiras WLED (sincronizables en caliente)."""
+    """Routes rendering by strip id: local PWM strips (single ws2811 bank,
+    created at startup) + WLED strips (hot-syncable)."""
 
     def __init__(self, pwm_cfg: list, strip_store):
         self._store = strip_store
         self._bank = create_bank(pwm_cfg) if pwm_cfg else MockBank([])
-        # las entradas pwm del store van en el mismo orden que pwm_cfg
+        # pwm entries in the store follow the same order as pwm_cfg
         self._pwm_index = {
             e["id"]: i
             for i, e in enumerate(s for s in strip_store.list() if s["kind"] == "pwm")
@@ -157,7 +157,7 @@ class StripManager:
         self.sync()
 
     def sync(self):
-        """Reconcilia los senders WLED con el StripStore (altas, bajas y cambios)."""
+        """Reconcile WLED senders with the StripStore (adds, removals, changes)."""
         entries = {s["id"]: s for s in self._store.list() if s["kind"] == "wled"}
         for sid in list(self._wled):
             e = entries.get(sid)

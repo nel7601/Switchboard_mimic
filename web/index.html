@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,41 +11,41 @@
     <div class="brand">
       <h1>Switchboard Mimic</h1>
       <nav>
-        <a href="/" class="active">Mímico</a>
-        <a href="/elements">Elementos</a>
+        <a href="/" class="active">Mimic</a>
+        <a href="/elements">Elements</a>
         <a href="/settings">Settings</a>
       </nav>
     </div>
     <div class="status">
-      <span id="conn-badge" class="badge">conectando…</span>
+      <span id="conn-badge" class="badge">connecting…</span>
       <span id="modbus-badge" class="badge">Modbus: —</span>
       <label class="toggle">
-        <input type="checkbox" id="test-mode"> Modo test
+        <input type="checkbox" id="test-mode"> Test mode
       </label>
-      <button id="btn-refresh">Refrescar</button>
+      <button id="btn-refresh">Refresh</button>
     </div>
   </header>
 
   <div id="strip-tabs" class="tabs"></div>
 
   <section class="card">
-    <h2>Tira LED</h2>
+    <h2>LED strip</h2>
     <p class="hint" id="test-hint" hidden>
-      Modo test: haz click en un LED para encenderlo/apagarlo en azul en la tira física
-      y comprobar su posición real.
+      Test mode: click a LED to toggle it blue on the physical strip and verify
+      its real position.
     </p>
     <div id="strips"></div>
   </section>
 
   <section class="card">
-    <h2>Asignación de segmentos</h2>
+    <h2>Segment assignment</h2>
     <p class="hint">
-      Asocia un rango de LEDs de esta tira a un elemento. Los elementos y sus
-      parámetros Modbus se definen en la vista <a href="/elements">Elementos</a>.
+      Map a LED range of this strip to an element. Elements and their Modbus
+      parameters are defined in the <a href="/elements">Elements</a> view.
     </p>
     <table id="segments-table">
       <thead>
-        <tr><th>ID</th><th>LED inicio</th><th>LED fin</th><th>Elemento</th><th>Tipo</th><th>Color</th></tr>
+        <tr><th>ID</th><th>Start LED</th><th>End LED</th><th>Element</th><th>Type</th><th>Color</th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -53,16 +53,16 @@
     <form id="segment-form">
       <input type="hidden" id="f-id">
       <div class="fields">
-        <label>LED inicio <input type="number" id="f-start" min="1" value="1" required></label>
-        <label>LED fin <input type="number" id="f-end" min="1" value="1" required></label>
-        <label>Elemento <select id="f-element"></select></label>
+        <label>Start LED <input type="number" id="f-start" min="1" value="1" required></label>
+        <label>End LED <input type="number" id="f-end" min="1" value="1" required></label>
+        <label>Element <select id="f-element"></select></label>
       </div>
       <div class="actions">
-        <button type="submit" id="btn-add">Añadir</button>
-        <button type="button" id="btn-update" disabled>Actualizar</button>
-        <button type="button" id="btn-delete" disabled>Borrar</button>
-        <button type="button" id="btn-dismiss">Deseleccionar</button>
-        <button type="button" id="btn-clear" class="danger">Vaciar tabla</button>
+        <button type="submit" id="btn-add">Add</button>
+        <button type="button" id="btn-update" disabled>Update</button>
+        <button type="button" id="btn-delete" disabled>Delete</button>
+        <button type="button" id="btn-dismiss">Deselect</button>
+        <button type="button" id="btn-clear" class="danger">Clear table</button>
       </div>
     </form>
   </section>

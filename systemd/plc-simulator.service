@@ -1,5 +1,5 @@
 [Unit]
-Description=Simulador PLC Modbus TCP para Switchboard Mimic
+Description=Modbus TCP PLC simulator for Switchboard Mimic
 After=network.target
 
 [Service]

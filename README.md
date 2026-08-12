@@ -1,126 +1,124 @@
 # Switchboard Mimic
 
-Panel mímico luminoso de un cuadro eléctrico sobre una tira LED WS2812B, controlado
-desde una Raspberry Pi. Reescritura como aplicación independiente del proyecto
-original hecho en Node-RED — misma lógica, sin dependencia de Node-RED.
+Lighting mimic panel for an electrical switchboard on WS2812B LED strips, driven
+by a Raspberry Pi. Standalone rewrite of the original Node-RED project — same
+logic, no Node-RED dependency.
 
-## Qué hace
+## What it does
 
-- Los **elementos** del cuadro (Mimic A, Main B, Tie, Bus A, Feeder A1, …) se definen
-  en la vista *Elementos* (`/elements`): cada uno con su tipo y sus parámetros Modbus
-  propios — IP, puerto, device/unit ID y dirección del primer registro. Cada elemento
-  puede vivir en un PLC distinto (pool de conexiones por host).
-- Una **tabla de segmentos** (vista *Mímico*, `/`) asocia tramos de la tira LED
-  (`start`–`end`, base 1) a esos elementos: solo rango + elemento.
-- Los **tipos de objeto** se definen en la página *Settings* (`/settings`). Cada tipo
-  lleva una **regla de color**:
+- The switchboard **elements** (Mimic A, Main B, Tie, Bus A, Feeder A1, …) are
+  defined in the *Elements* view (`/elements`): each one with its type and its own
+  Modbus parameters — IP, port, device/unit ID and first register address. Each
+  element can live on a different PLC (per-host connection pool).
+- A **segment table** (*Mimic* view, `/`) maps LED ranges (`start`–`end`, 1-based)
+  to those elements: just range + element. A LED can only belong to one segment
+  per strip (overlap is rejected).
+- **Object types** are defined in the *Settings* page (`/settings`). Each type
+  carries a **color rule**:
 
-  | Regla | Comportamiento |
+  | Rule | Behavior |
   |---|---|
-  | `simple` | `reg[0]=1` → Rojo · si no → Verde |
-  | `breaker` | `reg[2]=1` → Amarillo (disparado) · `reg[1]=1` → Rojo · `reg[0]=1` → Verde · si no → Gris |
-  | `bus` | Como `simple`, y marca el elemento como Bus de referencia para los derivados |
-  | `derived` | Sin lectura Modbus: Rojo si el Bus de referencia está Rojo **y** el elemento aguas arriba (el segmento que termina justo antes) está Rojo; si no, Verde |
+  | `simple` | `reg[0]=1` → Red · otherwise → Green |
+  | `breaker` | `reg[2]=1` → Yellow (tripped) · `reg[1]=1` → Red · `reg[0]=1` → Green · otherwise → Gray |
+  | `bus` | Like `simple`, and marks the element as the reference Bus for derived types |
+  | `derived` | No Modbus read: Red if the reference Bus is Red **and** the upstream element (the segment ending right before) is Red; otherwise Green |
 
-  Tipos por defecto: Incom (`simple`), Breaker (`breaker`), Bus (`bus`), Tie (`simple`),
+  Default types: Incom (`simple`), Breaker (`breaker`), Bus (`bus`), Tie (`simple`),
   Feeder (`derived`).
-- Un **poller** lee por Modbus TCP (FC3, 5 registros por elemento, con los parámetros
-  de conexión de cada elemento) y calcula el color de cada segmento según la regla de
-  su tipo.
-- Soporta **múltiples tiras LED**:
-  - Hasta 2 tiras **PWM locales** en la Raspberry Pi (`config.json` → `strips`):
-    canal 0 en GPIO 12/18 y canal 1 en GPIO 13/19, manejadas desde una única
-    inicialización ws2811 (comparten periférico PWM y DMA). Son fijas; desde
-    Settings solo se les cambia el nombre.
-  - Tiras **WLED** ilimitadas (controladores ESP32 en red), creadas desde Settings
-    con nombre, host/IP, puerto y nº de LEDs. Se pintan con el protocolo UDP
-    realtime DNRGB de WLED (sin dependencias, troceado automático para tiras
-    largas). Altas, bajas y cambios se aplican en caliente.
-  - Cada tira aparece como una pestaña en la vista Mímico, con su propia tabla de
-    segmentos. Cada segmento indica a qué tira pertenece.
-- La vista muestra al menos los LEDs configurados de cada tira y **crece
-  automáticamente** si la tabla asigna LEDs más allá; los que exceden la tira física
-  se dibujan con borde discontinuo. La **web app** tiene tres páginas:
-  - `/` — mímico: estado en vivo de la tira y asignación rango de LEDs → elemento
-    (CRUD, modo test que resalta en azul el segmento seleccionado)
-  - `/elements` — elementos del cuadro con su tipo y parámetros Modbus
-  - `/settings` — tipos de objeto y panel del simulador PLC (generado a partir de los
-    elementos definidos)
+- Supports **multiple LED strips**:
+  - Up to 2 local **PWM strips** on the Raspberry Pi (`config.json` → `strips`):
+    channel 0 on GPIO 12/18 and channel 1 on GPIO 13/19, driven from a single
+    ws2811 initialization (they share the PWM peripheral and DMA). They are fixed;
+    Settings only allows renaming them.
+  - Unlimited **WLED strips** (ESP32 controllers on the network), created from
+    Settings with name, host/IP, port and LED count. Painted with WLED's DNRGB
+    realtime UDP protocol (dependency-free, auto-chunked for long strips). Adds,
+    edits and removals apply live.
+  - Each strip appears as a tab in the Mimic view, with its own segment table.
+- A **poller** reads Modbus TCP (FC3, 5 registers per element, using each
+  element's connection parameters) and computes every segment's color from its
+  type's rule.
+- The physical strips are painted with those colors. The view shows at least each
+  strip's configured LEDs and **grows automatically** when the table assigns LEDs
+  beyond that; LEDs past the physical strip are drawn with a dashed border.
+- **Test mode**: freezes refreshing, highlights the selected segment in blue, and
+  lets you click individual LEDs to toggle them blue on the physical strip — handy
+  to verify real positions and wiring.
 
-## Estructura
+## Structure
 
 ```
-switchboard/        backend: FastAPI + WebSocket, poller Modbus, driver LED
-  main.py           API REST + WS + estáticos
-  engine.py         ciclo de refresco y pintado (port del flujo 'Print')
-  colors.py         lógica de colores (port del flujo 'get color')
-  store.py          asignación LEDs→elemento persistida en data/segments.json
-  elementstore.py   elementos con tipo y parámetros Modbus (data/elements.json)
-  typestore.py      tipos de objeto y su regla de color (data/types.json)
-  stripstore.py     tiras LED con nombre: pwm locales + wled remotas (data/strips.json)
-  leds.py           driver rpi_ws281x con fallback a mock (sin hardware/root)
-  modbus_client.py  cliente Modbus TCP asíncrono
-simulator/plc_sim.py  simulador de PLC Modbus (reemplaza la pestaña 'Modbus Simulation')
-web/                frontend vanilla JS (sin build step)
-systemd/            unidades de servicio
-config.json         tiras LED (nº, GPIO, brillo, canal PWM), Modbus, puerto HTTP
+switchboard/        backend: FastAPI + WebSocket, Modbus poller, LED drivers
+  main.py           REST API + WS + static files
+  engine.py         refresh & paint cycle (port of the 'Print' flow)
+  colors.py         color logic (port of the 'get color' flow)
+  store.py          LED→element assignment persisted in data/segments.json
+  elementstore.py   elements with type and Modbus parameters (data/elements.json)
+  typestore.py      object types and their color rule (data/types.json)
+  stripstore.py     named LED strips: local pwm + remote wled (data/strips.json)
+  leds.py           ws281x dual-PWM bank + WLED UDP sender, mock fallback
+  modbus_client.py  async Modbus TCP client pool
+simulator/plc_sim.py  Modbus PLC simulator (replaces the 'Modbus Simulation' tab)
+web/                vanilla JS frontend (no build step)
+systemd/            service units
+config.json         PWM strips (count, GPIO, brightness, channel), Modbus, HTTP port
 ```
 
-## Instalación (Raspberry Pi)
+## Installation (Raspberry Pi)
 
 ```bash
 git clone https://github.com/nel7601/Switchboard_mimic.git
 cd Switchboard_mimic
-python3 -m venv --system-site-packages .venv   # system-site para usar rpi_ws281x del sistema
+python3 -m venv --system-site-packages .venv   # system-site to use the system rpi_ws281x
 .venv/bin/pip install -r requirements.txt
 ```
 
-`rpi_ws281x` debe estar instalado a nivel de sistema (ya lo está si la Pi usaba
+`rpi_ws281x` must be installed system-wide (it already is if the Pi ran
 node-red-node-pi-neopixel): `sudo pip3 install rpi_ws281x`.
 
-## Uso
+## Usage
 
 ```bash
-# Simulador de PLC (si no hay PLC real):
-.venv/bin/python simulator/plc_sim.py            # Modbus TCP en 127.0.0.1:5020
+# PLC simulator (when there is no real PLC):
+.venv/bin/python simulator/plc_sim.py            # Modbus TCP on 127.0.0.1:5020
 
-# Aplicación (root necesario para la tira LED; sin root usa driver simulado):
+# Application (root required for the LED strips; without root it uses a mock driver):
 sudo .venv/bin/python -m switchboard.main
 ```
 
-Web app en `http://<ip-de-la-pi>:8085`.
+Web app at `http://<pi-ip>:8085`.
 
-Para un PLC real, edita `config.json` → `modbus.host/port`.
+For a real PLC, set each element's Modbus parameters in the Elements view.
 
-### Como servicio
+### As a service
 
 ```bash
 sudo cp systemd/switchboard.service /etc/systemd/system/
-sudo cp systemd/plc-simulator.service /etc/systemd/system/   # opcional, solo simulación
+sudo cp systemd/plc-simulator.service /etc/systemd/system/   # optional, simulation only
 sudo systemctl enable --now plc-simulator switchboard
 ```
 
-> **Nota:** la tira LED (GPIO12/PWM) solo puede usarla un proceso a la vez.
-> Si Node-RED sigue corriendo con el proyecto antiguo, detenlo antes:
+> **Note:** the LED strips (PWM GPIOs) can only be used by one process at a time.
+> If Node-RED is still running the old project, stop it first:
 > `sudo systemctl disable --now nodered`
 
 ## API
 
-| Método | Ruta | Descripción |
+| Method | Route | Description |
 |---|---|---|
-| GET | `/api/state` | Estado completo: segmentos con color y regla, píxeles, modo |
-| GET/POST | `/api/segments` | Listar / añadir segmento |
-| PUT/DELETE | `/api/segments/{id}` | Actualizar / borrar segmento |
-| DELETE | `/api/segments` | Vaciar tabla |
-| GET/POST | `/api/strips` | Listar tiras / añadir tira WLED (nombre, host, puerto, LEDs) |
-| PUT/DELETE | `/api/strips/{id}` | Renombrar (PWM y WLED) o editar/borrar (solo WLED, bloqueado si tiene segmentos) |
-| GET/POST | `/api/elements` | Listar / añadir elementos (nombre, tipo, params Modbus) |
-| PUT/DELETE | `/api/elements/{id}` | Actualizar / borrar elemento (bloqueado si está asignado) |
-| GET/POST | `/api/types` | Listar / añadir tipos de objeto |
-| PUT/DELETE | `/api/types/{name}` | Actualizar (renombra en cascada) / borrar tipo (bloqueado si está en uso) |
-| POST | `/api/refresh` | Forzar una pasada de refresco |
-| POST | `/api/test-mode/{bool}` | Modo test (congela refresco, resalta selección) |
-| POST | `/api/test-led/{tira}/{led}` | Encender/apagar en azul un LED individual (modo test) |
-| POST | `/api/select/{id}` | Seleccionar segmento (0 = ninguno) |
-| POST | `/api/modbus/write` | Escribir registro `{address, value}` (simulación) |
-| WS | `/ws` | Push de estado en tiempo real |
+| GET | `/api/state` | Full state: segments with color and rule, pixels per strip, mode |
+| GET/POST | `/api/segments` | List / add segment |
+| PUT/DELETE | `/api/segments/{id}` | Update / delete segment |
+| DELETE | `/api/segments` | Clear the table (`?strip=N` clears a single strip) |
+| GET/POST | `/api/strips` | List strips / add WLED strip (name, host, port, LEDs) |
+| PUT/DELETE | `/api/strips/{id}` | Rename (PWM and WLED) or edit/delete (WLED only, blocked while it has segments) |
+| GET/POST | `/api/elements` | List / add elements (name, type, Modbus params) |
+| PUT/DELETE | `/api/elements/{id}` | Update / delete element (blocked while assigned) |
+| GET/POST | `/api/types` | List / add object types |
+| PUT/DELETE | `/api/types/{name}` | Update (renames cascade) / delete type (blocked while in use) |
+| POST | `/api/refresh` | Force a refresh pass |
+| POST | `/api/test-mode/{bool}` | Test mode (freezes refresh, highlights selection) |
+| POST | `/api/test-led/{strip}/{led}` | Toggle a single LED blue (test mode) |
+| POST | `/api/select/{id}` | Select a segment (0 = none) |
+| POST | `/api/modbus/write` | Write a register `{address, value, host?, port?, unit?}` (simulation) |
+| WS | `/ws` | Real-time state push |

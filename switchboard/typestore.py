@@ -1,14 +1,13 @@
-"""Tipos de objeto asignables a los segmentos, definibles por el usuario.
+"""Object types assignable to segments, user-definable.
 
-Cada tipo lleva una regla de color:
-  simple  : reg[0]=1 -> Rojo, si no Verde
-  breaker : reg[2]=1 -> Amarillo (disparado), reg[1]=1 -> Rojo,
-            reg[0]=1 -> Verde, si no Gris
-  bus     : igual que simple, pero además marca el elemento como Bus de
-            referencia para los tipos derivados
-  derived : sin lectura Modbus; Rojo si el Bus de referencia está Rojo y el
-            elemento aguas arriba (el segmento que termina justo antes) está
-            Rojo; si no Verde
+Each type carries a color rule:
+  simple  : reg[0]=1 -> Red, otherwise Green
+  breaker : reg[2]=1 -> Yellow (tripped), reg[1]=1 -> Red,
+            reg[0]=1 -> Green, otherwise Gray
+  bus     : same as simple, but also marks the element as the reference Bus
+            for derived types
+  derived : no Modbus read; Red if the reference Bus is Red and the upstream
+            element (the segment ending right before) is Red; otherwise Green
 """
 import json
 import threading
@@ -51,9 +50,9 @@ class TypeStore:
         name = str(row.get("name", "")).strip()
         rule = row.get("rule", "simple")
         if not name:
-            raise ValueError("el nombre del tipo no puede estar vacío")
+            raise ValueError("the type name cannot be empty")
         if rule not in RULES:
-            raise ValueError(f"regla inválida: {rule!r} (válidas: {RULES})")
+            raise ValueError(f"invalid rule: {rule!r} (valid: {RULES})")
         return {"name": name, "rule": rule}
 
     def list(self) -> list[dict]:
@@ -65,7 +64,7 @@ class TypeStore:
             return any(t["name"] == name for t in self._types)
 
     def rule_for(self, name: str) -> str:
-        """Regla del tipo; 'simple' si el tipo ya no existe (dato antiguo)."""
+        """Rule of the type; 'simple' if the type no longer exists (stale data)."""
         with self._lock:
             return next((t["rule"] for t in self._types if t["name"] == name), "simple")
 
@@ -73,13 +72,13 @@ class TypeStore:
         clean = self._validate(row)
         with self._lock:
             if any(t["name"] == clean["name"] for t in self._types):
-                raise ValueError(f"ya existe un tipo llamado {clean['name']!r}")
+                raise ValueError(f"a type named {clean['name']!r} already exists")
             self._types.append(clean)
             self._save()
             return dict(clean)
 
     def update(self, name: str, row: dict) -> Optional[dict]:
-        """Actualiza el tipo `name`. Devuelve (tipo, nombre_anterior) o None."""
+        """Update the type `name`. Returns the updated type or None."""
         clean = self._validate(row)
         with self._lock:
             for i, t in enumerate(self._types):
@@ -87,7 +86,7 @@ class TypeStore:
                     if clean["name"] != name and any(
                         o["name"] == clean["name"] for o in self._types
                     ):
-                        raise ValueError(f"ya existe un tipo llamado {clean['name']!r}")
+                        raise ValueError(f"a type named {clean['name']!r} already exists")
                     self._types[i] = clean
                     self._save()
                     return dict(clean)

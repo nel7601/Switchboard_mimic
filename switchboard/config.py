@@ -1,4 +1,4 @@
-"""Carga de configuración desde config.json (raíz del proyecto)."""
+"""Configuration loading from config.json (project root)."""
 import json
 from pathlib import Path
 
@@ -28,19 +28,19 @@ def load_config() -> dict:
         user = json.loads(CONFIG_FILE.read_text())
         for key, value in user.items():
             if key == "led":
-                continue  # formato antiguo, se trata abajo
+                continue  # legacy format, handled below
             if isinstance(value, dict) and isinstance(cfg.get(key), dict):
                 cfg[key].update(value)
             else:
                 cfg[key] = value
-        # compatibilidad con el formato antiguo de una sola tira ("led": {...})
+        # backward compatibility with the legacy single-strip format ("led": {...})
         if "strips" not in user and "led" in user:
             strip = dict(DEFAULT_STRIP)
             strip.update(user["led"])
             cfg["strips"] = [strip]
-    # normalizar cada tira con los defaults
+    # normalize every strip against the defaults
     strips = []
-    for s in cfg["strips"][:2]:  # rpi_ws281x soporta 2 canales PWM como máximo
+    for s in cfg["strips"][:2]:  # rpi_ws281x supports at most 2 PWM channels
         full = dict(DEFAULT_STRIP)
         full.update(s)
         strips.append(full)

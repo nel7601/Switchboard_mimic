@@ -1,7 +1,7 @@
-"""Persistencia de la tabla de asignación del mímico.
+"""Persistence for the mimic assignment table.
 
-Cada fila asocia un tramo de LEDs (`start`–`end`, base 1) de una tira (`strip`,
-base 1) a un elemento definido en la vista de Elementos (`element_id`).
+Each row maps a LED range (`start`–`end`, 1-based) of a strip (`strip`, id from
+StripStore) to an element defined in the Elements view (`element_id`).
 """
 import json
 import threading
@@ -22,7 +22,7 @@ class SegmentStore:
             data = json.loads(self._file.read_text())
             self._segments = data.get("segments", [])
             for seg in self._segments:
-                seg.setdefault("strip", 1)  # datos anteriores a multi-tira
+                seg.setdefault("strip", 1)  # data predating multi-strip support
             self._last_id = data.get("last_id", max((s["id"] for s in self._segments), default=0))
 
     def _save(self):
@@ -36,13 +36,13 @@ class SegmentStore:
     def _validate(row: dict) -> dict:
         start, end = int(row.get("start", 1)), int(row.get("end", 1))
         if start < 1 or end < 1:
-            raise ValueError("start/end deben ser >= 1")
+            raise ValueError("start/end must be >= 1")
         strip = int(row.get("strip", 1))
         if strip < 1:
-            raise ValueError("strip debe ser >= 1")
+            raise ValueError("strip must be >= 1")
         element_id = int(row.get("element_id", 0))
         if element_id < 1:
-            raise ValueError("el segmento necesita un elemento asociado")
+            raise ValueError("the segment needs an associated element")
         return {"strip": strip, "start": start, "end": end, "element_id": element_id}
 
     def list(self) -> list[dict]:
@@ -54,8 +54,8 @@ class SegmentStore:
             return next((dict(s) for s in self._segments if s["id"] == seg_id), None)
 
     def _find_overlap(self, clean: dict, exclude_id: Optional[int] = None) -> Optional[dict]:
-        """Devuelve el segmento existente que solapa con el rango dado, si lo hay.
-        Debe llamarse con el lock tomado."""
+        """Return the existing segment overlapping the given range, if any.
+        Must be called with the lock held."""
         lo, hi = min(clean["start"], clean["end"]), max(clean["start"], clean["end"])
         for seg in self._segments:
             if seg["id"] == exclude_id or seg["strip"] != clean["strip"]:
@@ -71,8 +71,8 @@ class SegmentStore:
             other = self._find_overlap(clean)
             if other:
                 raise ValueError(
-                    f"los LEDs {clean['start']}-{clean['end']} de la tira {clean['strip']} ya "
-                    f"están asignados: solapan con el segmento #{other['id']} "
+                    f"LEDs {clean['start']}-{clean['end']} on strip {clean['strip']} are "
+                    f"already assigned: they overlap segment #{other['id']} "
                     f"(LED {other['start']}-{other['end']})"
                 )
             self._last_id += 1
@@ -87,8 +87,8 @@ class SegmentStore:
             other = self._find_overlap(clean, exclude_id=seg_id)
             if other:
                 raise ValueError(
-                    f"los LEDs {clean['start']}-{clean['end']} de la tira {clean['strip']} ya "
-                    f"están asignados: solapan con el segmento #{other['id']} "
+                    f"LEDs {clean['start']}-{clean['end']} on strip {clean['strip']} are "
+                    f"already assigned: they overlap segment #{other['id']} "
                     f"(LED {other['start']}-{other['end']})"
                 )
             for i, seg in enumerate(self._segments):
@@ -109,7 +109,7 @@ class SegmentStore:
             return False
 
     def clear(self, strip: Optional[int] = None):
-        """Vacía la tabla; con `strip` borra solo los segmentos de esa tira."""
+        """Clear the table; with `strip`, delete only that strip's segments."""
         with self._lock:
             if strip is None:
                 self._segments = []

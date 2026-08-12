@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Elementos — Switchboard Mimic</title>
+  <title>Elements — Switchboard Mimic</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -11,25 +11,25 @@
     <div class="brand">
       <h1>Switchboard Mimic</h1>
       <nav>
-        <a href="/">Mímico</a>
-        <a href="/elements" class="active">Elementos</a>
+        <a href="/">Mimic</a>
+        <a href="/elements" class="active">Elements</a>
         <a href="/settings">Settings</a>
       </nav>
     </div>
   </header>
 
   <section class="card">
-    <h2>Elementos del mímico</h2>
+    <h2>Mimic elements</h2>
     <p class="hint">
-      Define aquí cada elemento del cuadro (Mimic A, Main B, Tie…) con su tipo y sus
-      parámetros Modbus. En la vista Mímico solo tendrás que asociar un rango de LEDs
-      a uno de estos elementos.
+      Define each switchboard element here (Mimic A, Main B, Tie…) with its type and
+      Modbus parameters. In the Mimic view you only need to map a LED range to one of
+      these elements.
     </p>
     <table id="elements-table">
       <thead>
         <tr>
-          <th>ID</th><th>Nombre</th><th>Tipo</th><th>IP</th><th>Puerto</th>
-          <th>Device ID</th><th>Dirección</th><th>Segmentos</th><th></th>
+          <th>ID</th><th>Name</th><th>Type</th><th>IP</th><th>Port</th>
+          <th>Device ID</th><th>Address</th><th>Segments</th><th></th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -38,23 +38,23 @@
     <form id="element-form">
       <input type="hidden" id="e-id">
       <div class="fields">
-        <label>Nombre <input type="text" id="e-name" required></label>
-        <label>Tipo <select id="e-type"></select></label>
+        <label>Name <input type="text" id="e-name" required></label>
+        <label>Type <select id="e-type"></select></label>
       </div>
       <div class="fields" id="modbus-fields">
         <label>IP <input type="text" id="e-host" value="127.0.0.1"></label>
-        <label>Puerto <input type="number" id="e-port" min="1" max="65535" value="502"></label>
+        <label>Port <input type="number" id="e-port" min="1" max="65535" value="502"></label>
         <label>Device ID <input type="number" id="e-unit" min="0" max="255" value="1"></label>
-        <label>Dirección Modbus <input type="number" id="e-address" min="0" value="0"></label>
+        <label>Modbus address <input type="number" id="e-address" min="0" value="0"></label>
       </div>
       <p class="hint" id="modbus-note" hidden>
-        Este tipo usa la regla <code>derived</code>: su color se deriva de otros
-        elementos, no necesita parámetros Modbus.
+        This type uses the <code>derived</code> rule: its color is derived from other
+        elements, so it needs no Modbus parameters.
       </p>
       <div class="actions">
-        <button type="submit" id="e-add">Añadir elemento</button>
-        <button type="button" id="e-update" disabled>Actualizar</button>
-        <button type="button" id="e-dismiss">Deseleccionar</button>
+        <button type="submit" id="e-add">Add element</button>
+        <button type="button" id="e-update" disabled>Update</button>
+        <button type="button" id="e-dismiss">Deselect</button>
       </div>
     </form>
   </section>

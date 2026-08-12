@@ -1,8 +1,8 @@
-"""Elementos del mímico: instancias con nombre (Mimic A, Main B, Tie, ...).
+"""Mimic elements: named instances (Mimic A, Main B, Tie, ...).
 
-Cada elemento tiene un tipo (definido en Settings) y sus parámetros Modbus:
-host (IP), puerto, unit/device ID y dirección del primer registro. Los
-elementos cuyo tipo usa la regla 'derived' no necesitan parámetros Modbus.
+Each element has a type (defined in Settings) and its Modbus parameters:
+host (IP), port, unit/device ID and first register address. Elements whose
+type uses the 'derived' rule don't need Modbus parameters.
 """
 import json
 import threading
@@ -37,10 +37,10 @@ class ElementStore:
     def _validate(row: dict) -> dict:
         name = str(row.get("name", "")).strip()
         if not name:
-            raise ValueError("el elemento necesita un nombre")
+            raise ValueError("the element needs a name")
         seg_type = str(row.get("type", "")).strip()
         if not seg_type:
-            raise ValueError("el elemento necesita un tipo")
+            raise ValueError("the element needs a type")
         modbus = row.get("modbus") or {}
         return {
             "name": name,
@@ -65,7 +65,7 @@ class ElementStore:
         clean = self._validate(row)
         with self._lock:
             if any(e["name"] == clean["name"] for e in self._elements):
-                raise ValueError(f"ya existe un elemento llamado {clean['name']!r}")
+                raise ValueError(f"an element named {clean['name']!r} already exists")
             self._last_id += 1
             clean["id"] = self._last_id
             self._elements.append(clean)
@@ -80,7 +80,7 @@ class ElementStore:
                     if clean["name"] != e["name"] and any(
                         o["name"] == clean["name"] for o in self._elements
                     ):
-                        raise ValueError(f"ya existe un elemento llamado {clean['name']!r}")
+                        raise ValueError(f"an element named {clean['name']!r} already exists")
                     clean["id"] = elem_id
                     self._elements[i] = clean
                     self._save()
@@ -101,6 +101,7 @@ class ElementStore:
             return sum(1 for e in self._elements if e["type"] == type_name)
 
     def rename_type(self, old: str, new: str) -> int:
+        """Cascade when a type is renamed in Settings. Returns affected rows."""
         with self._lock:
             n = 0
             for e in self._elements:

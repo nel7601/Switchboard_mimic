@@ -1,6 +1,6 @@
-"""Switchboard Mimic — API REST + WebSocket + frontend estático.
+"""Switchboard Mimic — REST API + WebSocket + static frontend.
 
-Arranque:  .venv/bin/python -m switchboard.main   (o via systemd)
+Start with:  .venv/bin/python -m switchboard.main   (or via systemd)
 """
 import asyncio
 import json
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
     engine.on_update = broadcast
     await engine.start()
     log.info(
-        "Motor del mímico arrancado (%s)",
+        "Mimic engine started (%s)",
         ", ".join(
             f"{s['name']} [{s['kind']}]: {manager.hw_count(s['id'])} LEDs"
             for s in strip_store.list()
@@ -124,14 +124,14 @@ class RegisterWrite(BaseModel):
     unit: Optional[int] = None
 
 
-# ---------- estado ----------
+# ---------- state ----------
 
 @app.get("/api/state")
 def get_state():
     return engine.state()
 
 
-# ---------- segmentos (vista Mímico) ----------
+# ---------- segments (Mimic view) ----------
 
 @app.get("/api/segments")
 def list_segments():
@@ -140,12 +140,12 @@ def list_segments():
 
 def _check_element(elem_id: int):
     if element_store.get(elem_id) is None:
-        raise HTTPException(400, f"el elemento id={elem_id} no está definido (ver Elementos)")
+        raise HTTPException(400, f"element id={elem_id} is not defined (see Elements)")
 
 
 def _check_strip(strip: int):
     if not strip_store.exists(strip):
-        raise HTTPException(400, f"la tira id={strip} no existe")
+        raise HTTPException(400, f"strip id={strip} does not exist")
 
 
 @app.post("/api/segments")
@@ -169,7 +169,7 @@ async def update_segment(seg_id: int, seg: SegmentIn):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     if row is None:
-        raise HTTPException(404, "segmento no encontrado")
+        raise HTTPException(404, "segment not found")
     await engine.refresh()
     return row
 
@@ -177,7 +177,7 @@ async def update_segment(seg_id: int, seg: SegmentIn):
 @app.delete("/api/segments/{seg_id}")
 async def delete_segment(seg_id: int):
     if not store.delete(seg_id):
-        raise HTTPException(404, "segmento no encontrado")
+        raise HTTPException(404, "segment not found")
     if engine.selected_id == seg_id:
         engine.selected_id = None
     await engine.refresh()
@@ -186,7 +186,7 @@ async def delete_segment(seg_id: int):
 
 @app.delete("/api/segments")
 async def clear_segments(strip: Optional[int] = None):
-    """Vacía la tabla completa, o solo la de una tira si se pasa ?strip=N."""
+    """Clear the whole table, or a single strip's segments with ?strip=N."""
     if strip is not None:
         _check_strip(strip)
     store.clear(strip)
@@ -195,7 +195,7 @@ async def clear_segments(strip: Optional[int] = None):
     return {"ok": True}
 
 
-# ---------- elementos ----------
+# ---------- elements ----------
 
 @app.get("/api/elements")
 def list_elements():
@@ -212,7 +212,7 @@ def list_elements():
 @app.post("/api/elements")
 async def add_element(elem: ElementIn):
     if not type_store.exists(elem.type):
-        raise HTTPException(400, f"el tipo {elem.type!r} no está definido (ver Settings)")
+        raise HTTPException(400, f"type {elem.type!r} is not defined (see Settings)")
     try:
         row = element_store.add(elem.model_dump())
     except ValueError as exc:
@@ -224,13 +224,13 @@ async def add_element(elem: ElementIn):
 @app.put("/api/elements/{elem_id}")
 async def update_element(elem_id: int, elem: ElementIn):
     if not type_store.exists(elem.type):
-        raise HTTPException(400, f"el tipo {elem.type!r} no está definido (ver Settings)")
+        raise HTTPException(400, f"type {elem.type!r} is not defined (see Settings)")
     try:
         row = element_store.update(elem_id, elem.model_dump())
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     if row is None:
-        raise HTTPException(404, "elemento no encontrado")
+        raise HTTPException(404, "element not found")
     await engine.refresh()
     return row
 
@@ -239,14 +239,14 @@ async def update_element(elem_id: int, elem: ElementIn):
 async def delete_element(elem_id: int):
     in_use = store.count_by_element(elem_id)
     if in_use:
-        raise HTTPException(400, f"el elemento está asignado a {in_use} segmento(s) del mímico")
+        raise HTTPException(400, f"the element is assigned to {in_use} mimic segment(s)")
     if not element_store.delete(elem_id):
-        raise HTTPException(404, "elemento no encontrado")
+        raise HTTPException(404, "element not found")
     await engine.refresh()
     return {"ok": True}
 
 
-# ---------- tiras (Settings) ----------
+# ---------- strips (Settings) ----------
 
 @app.get("/api/strips")
 def list_strips():
@@ -282,7 +282,7 @@ async def update_strip(strip_id: int, s: StripUpdate):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     if row is None:
-        raise HTTPException(404, "tira no encontrada")
+        raise HTTPException(404, "strip not found")
     manager.sync()
     await engine.refresh()
     return row
@@ -292,10 +292,10 @@ async def update_strip(strip_id: int, s: StripUpdate):
 async def delete_strip(strip_id: int):
     in_use = store.count_by_strip(strip_id)
     if in_use:
-        raise HTTPException(400, f"la tira tiene {in_use} segmento(s) asignados en el mímico")
+        raise HTTPException(400, f"the strip has {in_use} segment(s) assigned in the mimic")
     try:
         if not strip_store.delete(strip_id):
-            raise HTTPException(404, "tira no encontrada")
+            raise HTTPException(404, "strip not found")
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     manager.sync()
@@ -304,7 +304,7 @@ async def delete_strip(strip_id: int):
     return {"ok": True}
 
 
-# ---------- tipos (Settings) ----------
+# ---------- types (Settings) ----------
 
 @app.get("/api/types")
 def list_types():
@@ -333,7 +333,7 @@ async def update_type(name: str, t: TypeIn):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     if row is None:
-        raise HTTPException(404, "tipo no encontrado")
+        raise HTTPException(404, "type not found")
     if row["name"] != name:
         element_store.rename_type(name, row["name"])
     await engine.refresh()
@@ -344,9 +344,9 @@ async def update_type(name: str, t: TypeIn):
 async def delete_type(name: str):
     in_use = element_store.count_by_type(name)
     if in_use:
-        raise HTTPException(400, f"el tipo {name!r} lo usan {in_use} elemento(s)")
+        raise HTTPException(400, f"type {name!r} is used by {in_use} element(s)")
     if not type_store.delete(name):
-        raise HTTPException(404, "tipo no encontrado")
+        raise HTTPException(404, "type not found")
     return {"ok": True}
 
 
@@ -372,19 +372,19 @@ def select_segment(seg_id: int):
 
 @app.post("/api/test-led/{strip}/{led}")
 def toggle_test_led(strip: int, led: int):
-    """Enciende/apaga en azul un LED individual para probar posiciones físicas."""
+    """Toggle a single LED blue to verify physical positions."""
     if not engine.test_mode:
-        raise HTTPException(400, "activa el modo test primero")
+        raise HTTPException(400, "enable test mode first")
     _check_strip(strip)
     if not 1 <= led <= engine.display_count(strip):
-        raise HTTPException(400, f"LED fuera de rango (1-{engine.display_count(strip)})")
+        raise HTTPException(400, f"LED out of range (1-{engine.display_count(strip)})")
     engine.toggle_test_led(strip, led)
     return {"test_leds": sorted(engine.test_leds)}
 
 
 @app.post("/api/modbus/write")
 async def modbus_write(req: RegisterWrite):
-    """Escritura directa de un registro (para pruebas / simulación de estados del PLC)."""
+    """Write a register directly (for testing / simulating PLC states)."""
     host = req.host or cfg["modbus"]["host"]
     port = req.port or cfg["modbus"]["port"]
     unit = req.unit or cfg["modbus"]["unit"]
@@ -404,7 +404,7 @@ async def websocket_endpoint(ws: WebSocket):
     await ws.send_text(json.dumps({"type": "state", "data": engine.state()}))
     try:
         while True:
-            await ws.receive_text()  # solo mantenemos viva la conexión
+            await ws.receive_text()  # just keep the connection alive
     except WebSocketDisconnect:
         pass
     finally:

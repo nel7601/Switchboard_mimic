@@ -1,4 +1,4 @@
-/* Switchboard Mimic — vista de Elementos */
+/* Switchboard Mimic — Elements view */
 
 let elements = [];
 let types = [];
@@ -55,13 +55,13 @@ function renderTable() {
       <td>${e.used_by}</td>
       <td class="row-actions"></td>`;
     const del = document.createElement('button');
-    del.textContent = 'Borrar';
+    del.textContent = 'Delete';
     del.className = 'danger small';
     del.disabled = e.used_by > 0;
-    del.title = e.used_by > 0 ? 'Asignado en el mímico: no se puede borrar' : '';
+    del.title = e.used_by > 0 ? 'Assigned in the mimic: cannot delete' : '';
     del.onclick = async (ev) => {
       ev.stopPropagation();
-      if (!confirm(`¿Borrar el elemento "${e.name}"?`)) return;
+      if (!confirm(`Delete element "${e.name}"?`)) return;
       const res = await fetch(`/api/elements/${e.id}`, { method: 'DELETE' });
       if (!res.ok) alert((await res.json()).detail);
       await loadAll();

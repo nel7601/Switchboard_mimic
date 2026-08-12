@@ -1,10 +1,10 @@
-"""Lógica de colores del mímico (port de 'get color' de Node-RED).
+"""Mimic color logic (port of the Node-RED 'get color' flow).
 
-El color ya no depende del nombre del tipo sino de su regla (ver typestore.RULES).
-Registros por elemento (FC3, 5 registros desde `station`):
-  regs[0] = cerrado / activo
-  regs[1] = abierto / falla
-  regs[2] = disparado (solo regla breaker)
+The color no longer depends on the type's name but on its rule (see
+typestore.RULES). Registers per element (FC3, 5 registers from `station`):
+  regs[0] = closed / active
+  regs[1] = open / fault
+  regs[2] = tripped (breaker rule only)
 """
 
 COLOR_RGB = {
@@ -26,14 +26,14 @@ def color_from_registers(rule: str, regs: list) -> str:
         if regs[0] == 1:
             return "Green"
         return "Gray"
-    # simple y bus comparten mapeo
+    # simple and bus share the same mapping
     return "Red" if regs[0] == 1 else "Green"
 
 
 def derived_color(resolved_rows: list, start: int) -> str:
-    """Regla 'derived': el elemento no se lee por Modbus. Hereda Rojo solo si el
-    Bus de referencia (primer segmento con regla 'bus') está Rojo y el elemento
-    aguas arriba (el segmento cuyo LED final es start-1) está Rojo."""
+    """'derived' rule: the element is not read over Modbus. It inherits Red only
+    if the reference Bus (first segment with the 'bus' rule) is Red and the
+    upstream element (the segment whose last LED is start-1) is Red."""
     bus_color = next((r["color"] for r in resolved_rows if r.get("rule") == "bus"), "")
     upstream_end = start - 1
     upstream_color = next((r["color"] for r in resolved_rows if r["end"] == upstream_end), "")

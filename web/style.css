@@ -34,7 +34,7 @@ nav a.active { background: #2c68c9; color: white; }
 
 .hint { font-size: .82rem; color: #9fb0c3; margin-bottom: .8rem; }
 
-/* --- tabs de tira dentro de la vista --- */
+/* --- strip tabs inside the view --- */
 .tabs { display: flex; gap: .3rem; margin-bottom: .8rem; }
 .tabs button {
   background: #1a2230;
@@ -68,7 +68,7 @@ h2 small { font-weight: normal; font-size: .8rem; }
   margin-bottom: 1rem;
 }
 
-/* --- tiras LED --- */
+/* --- LED strips --- */
 .strip-block { margin-bottom: .8rem; }
 .strip-block:last-child { margin-bottom: 0; }
 .strip-block h3 {
@@ -106,7 +106,7 @@ h2 small { font-weight: normal; font-size: .8rem; }
   box-shadow: 0 0 6px #2c68c9;
 }
 
-/* --- tabla --- */
+/* --- table --- */
 table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
 th, td { padding: .45rem .6rem; text-align: left; font-size: .88rem; }
 th { color: #9fb0c3; border-bottom: 1px solid #2a3442; }
@@ -121,7 +121,7 @@ tbody tr.selected { background: #1d3a5f; }
   vertical-align: middle;
 }
 
-/* --- formulario --- */
+/* --- form --- */
 .fields { display: flex; flex-wrap: wrap; gap: .8rem; margin-bottom: .8rem; }
 .fields label { display: flex; flex-direction: column; font-size: .78rem; color: #9fb0c3; gap: .25rem; }
 input, select {
@@ -150,7 +150,7 @@ button:disabled { background: #2a3442; color: #667; cursor: default; }
 button.danger { background: #a03432; }
 .toggle { display: flex; align-items: center; gap: .35rem; font-size: .85rem; }
 
-/* --- simulador --- */
+/* --- simulator --- */
 .sim-panel { display: flex; flex-direction: column; gap: .5rem; }
 .sim-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .sim-row .name { width: 14rem; font-size: .85rem; color: #9fb0c3; }

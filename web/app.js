@@ -1,4 +1,4 @@
-/* Switchboard Mimic — vista Mímico */
+/* Switchboard Mimic — Mimic view */
 
 const COLOR_RGB = {
   Red: 'rgb(255,0,0)', Yellow: 'rgb(255,255,0)', Green: 'rgb(0,255,0)',
@@ -9,8 +9,8 @@ let segments = [];
 let elements = [];
 let selectedId = null;
 let testMode = false;
-let activeStrip = null;   // id de la tira activa
-let stripsMeta = [];      // [{id, name}] de la última actualización
+let activeStrip = null;   // id of the active strip
+let stripsMeta = [];      // [{id, name}] from the last update
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,9 +29,9 @@ function elementById(id) {
 function connectWs() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen = () => setBadge('conn-badge', 'en vivo', 'ok');
+  ws.onopen = () => setBadge('conn-badge', 'live', 'ok');
   ws.onclose = () => {
-    setBadge('conn-badge', 'desconectado', 'err');
+    setBadge('conn-badge', 'disconnected', 'err');
     setTimeout(connectWs, 2000);
   };
   ws.onmessage = (ev) => {
@@ -73,7 +73,7 @@ function applyState(state) {
   });
 }
 
-/* ---------- tira LED ---------- */
+/* ---------- LED strips ---------- */
 
 function renderTabs() {
   const bar = $('strip-tabs');
@@ -96,12 +96,12 @@ function switchStrip(id) {
   [...$('strips').children].forEach((block) => {
     block.style.display = Number(block.dataset.stripId) === id ? '' : 'none';
   });
-  dismiss(); // la selección pertenecía a la otra tira
+  dismiss(); // the selection belonged to the other strip
 }
 
 function renderStrips(strips) {
   const container = $('strips');
-  // reconstruir si cambiaron las tiras (nº, ids) o el nº de LEDs de alguna
+  // rebuild if the strips changed (count, ids) or any LED count changed
   const stale =
     container.childElementCount !== strips.length ||
     strips.some((s, idx) => {
@@ -144,13 +144,13 @@ function renderStrips(strips) {
       const virtual = i >= s.hw_led_count;
       led.classList.toggle('virtual', virtual);
       led.title = virtual
-        ? `LED ${i + 1} — fuera de la tira física configurada (${s.hw_led_count})`
+        ? `LED ${i + 1} — beyond the configured physical strip (${s.hw_led_count})`
         : `LED ${i + 1}`;
     });
   });
 }
 
-/* ---------- tabla ---------- */
+/* ---------- table ---------- */
 
 async function loadSegments() {
   const res = await fetch('/api/segments');
@@ -172,7 +172,7 @@ function renderTable() {
   const tbody = document.querySelector('#segments-table tbody');
   tbody.innerHTML = '';
   for (const seg of segments) {
-    if (seg.strip !== activeStrip) continue; // cada tab muestra su tira
+    if (seg.strip !== activeStrip) continue; // each tab shows its own strip
     const elem = elementById(seg.element_id);
     const tr = document.createElement('tr');
     tr.dataset.id = seg.id;
@@ -217,7 +217,7 @@ function formPayload() {
   };
 }
 
-/* ---------- eventos ---------- */
+/* ---------- events ---------- */
 
 $('segment-form').onsubmit = async (ev) => {
   ev.preventDefault();
@@ -251,7 +251,8 @@ $('btn-delete').onclick = async () => {
 $('btn-dismiss').onclick = dismiss;
 
 $('btn-clear').onclick = async () => {
-  if (!confirm(`¿Vaciar la tabla de la tira ${activeStrip}?`)) return;
+  const name = stripsMeta.find((m) => m.id === activeStrip)?.name ?? activeStrip;
+  if (!confirm(`Clear the table for strip "${name}"?`)) return;
   await fetch(`/api/segments?strip=${activeStrip}`, { method: 'DELETE' });
   dismiss();
   await loadSegments();

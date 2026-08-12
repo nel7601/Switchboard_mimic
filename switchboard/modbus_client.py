@@ -1,5 +1,5 @@
-"""Pool de clientes Modbus TCP: cada elemento puede vivir en un PLC distinto
-(host/puerto propios), y las conexiones se comparten y reutilizan."""
+"""Modbus TCP client pool: each element may live on a different PLC
+(its own host/port); connections are shared and reused."""
 import asyncio
 import logging
 
@@ -12,8 +12,8 @@ class ModbusPool:
     def __init__(self, timeout_s: float = 1.0):
         self._timeout = timeout_s
         self._clients: dict = {}  # (host, port) -> AsyncModbusTcpClient
-        # En Python 3.9 un asyncio.Lock creado fuera del loop en ejecución queda
-        # ligado a otro loop y rompe bajo contención: se crea perezosamente.
+        # On Python 3.9 an asyncio.Lock created outside the running loop binds
+        # to another loop and breaks under contention: create it lazily.
         self._lock: asyncio.Lock | None = None
 
     def _get_lock(self) -> asyncio.Lock:
@@ -29,7 +29,7 @@ class ModbusPool:
             await client.connect()
             self._clients[key] = client
         if not client.connected:
-            raise ConnectionError(f"No hay conexión Modbus con {host}:{port}")
+            raise ConnectionError(f"No Modbus connection to {host}:{port}")
         return client
 
     async def read_holding(
@@ -39,7 +39,7 @@ class ModbusPool:
             client = await self._client_for(host, port)
             rr = await client.read_holding_registers(address, count=count, slave=unit)
             if rr.isError():
-                raise IOError(f"Error Modbus leyendo {host}:{port} addr={address}: {rr}")
+                raise IOError(f"Modbus error reading {host}:{port} addr={address}: {rr}")
             return list(rr.registers)
 
     async def write_register(self, host: str, port: int, unit: int, address: int, value: int):
@@ -47,7 +47,7 @@ class ModbusPool:
             client = await self._client_for(host, port)
             rq = await client.write_register(address, value, slave=unit)
             if rq.isError():
-                raise IOError(f"Error Modbus escribiendo {host}:{port} addr={address}: {rq}")
+                raise IOError(f"Modbus error writing {host}:{port} addr={address}: {rq}")
 
     async def close(self):
         async with self._get_lock():

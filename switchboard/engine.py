@@ -1,9 +1,9 @@
-"""Ciclo de refresco del mímico (port del flujo 'Print' de Node-RED).
+"""Mimic refresh cycle (port of the Node-RED 'Print' flow).
 
-Modo RUN : resuelve cada segmento a su elemento, lee Modbus con los parámetros
-           del elemento, calcula color y pinta las tiras.
-Modo TEST: congela el refresco y resalta en azul el segmento seleccionado o los
-           LEDs marcados a mano.
+RUN mode : resolves each segment to its element, reads Modbus with the
+           element's parameters, computes the color and paints the strips.
+TEST mode: freezes refreshing and highlights the selected segment or the
+           manually toggled LEDs in blue.
 """
 import asyncio
 import logging
@@ -42,19 +42,19 @@ class MimicEngine:
         self._interval = poll_interval_s
         self.test_mode = False
         self.selected_id: Optional[int] = None
-        self.test_leds: set = set()  # {(id_tira, led)} encendidos a mano en modo test
-        # buffers virtuales por id de tira (pueden exceder la tira física)
+        self.test_leds: set = set()  # {(strip_id, led)} manually lit in test mode
+        # virtual buffers per strip id (may exceed the physical strip)
         self.pixels: dict = {sid: [] for sid in manager.ids()}
-        self.resolved: list[dict] = []  # última tabla con colores
+        self.resolved: list[dict] = []  # last resolved table with colors
         self.modbus_ok: Optional[bool] = None
-        self.on_update: Optional[Callable] = None  # callback para el websocket
+        self.on_update: Optional[Callable] = None  # websocket callback
         self._task: Optional[asyncio.Task] = None
-        self._refresh_lock: Optional[asyncio.Lock] = None  # perezoso (Python 3.9)
+        self._refresh_lock: Optional[asyncio.Lock] = None  # lazy (Python 3.9)
 
     def strip_exists(self, strip_id: int) -> bool:
         return self.strips.exists(strip_id)
 
-    # ---------- ciclo principal ----------
+    # ---------- main loop ----------
 
     async def start(self):
         self._task = asyncio.create_task(self._loop())
@@ -71,13 +71,13 @@ class MimicEngine:
                 if not self.test_mode:
                     await self.refresh()
             except Exception:
-                log.exception("Fallo en el ciclo de refresco")
+                log.exception("Refresh cycle failed")
             await asyncio.sleep(self._interval)
 
     async def refresh(self):
-        """Una pasada completa: resolver color de cada segmento y pintar las tiras.
+        """One full pass: resolve every segment's color and paint the strips.
 
-        Serializada: el poller y las llamadas de la API no se interfieren."""
+        Serialized so the poller and API calls don't interleave."""
         if self._refresh_lock is None:
             self._refresh_lock = asyncio.Lock()
         async with self._refresh_lock:
@@ -106,7 +106,7 @@ class MimicEngine:
                     )
                     row["color"] = color_from_registers(row["rule"], regs)
             except Exception as exc:
-                log.warning("Segmento %s (%s): %s", seg["id"], elem["name"], exc)
+                log.warning("Segment %s (%s): %s", seg["id"], elem["name"], exc)
                 row["color"] = "Gray"
                 ok = False
             resolved.append(row)
@@ -116,11 +116,11 @@ class MimicEngine:
         self._paint()
         self._notify()
 
-    # ---------- pintado ----------
+    # ---------- painting ----------
 
     def display_count(self, strip_id: int) -> int:
-        """LEDs a mostrar en la tira: al menos la tira física, y crece si la
-        tabla asigna más."""
+        """LEDs to display for the strip: at least the physical strip, growing
+        when the table assigns beyond it."""
         count = self.manager.hw_count(strip_id)
         for seg in self.store.list():
             if seg["strip"] == strip_id:
@@ -131,7 +131,7 @@ class MimicEngine:
         return count
 
     def _paint(self):
-        """Pinta los buffers virtuales; cada tira física recibe solo lo que le cabe."""
+        """Paint the virtual buffers; each physical strip gets only what fits."""
         buffers = {sid: [(0, 0, 0)] * self.display_count(sid) for sid in self.manager.ids()}
         for row in self.resolved:
             buf = buffers.get(row["strip"])
@@ -159,7 +159,7 @@ class MimicEngine:
         for sid, buf in buffers.items():
             self.manager.render(sid, buf)
 
-    # ---------- interacción desde la API ----------
+    # ---------- API interaction ----------
 
     def set_test_mode(self, enabled: bool):
         self.test_mode = enabled
@@ -170,7 +170,7 @@ class MimicEngine:
         self._notify()
 
     def toggle_test_led(self, strip_id: int, led: int):
-        """Enciende/apaga en azul un LED individual de una tira (solo en modo test)."""
+        """Toggle a single LED of a strip blue (test mode only)."""
         key = (strip_id, led)
         if key in self.test_leds:
             self.test_leds.discard(key)

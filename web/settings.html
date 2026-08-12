@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,23 +11,23 @@
     <div class="brand">
       <h1>Switchboard Mimic</h1>
       <nav>
-        <a href="/">Mímico</a>
-        <a href="/elements">Elementos</a>
+        <a href="/">Mimic</a>
+        <a href="/elements">Elements</a>
         <a href="/settings" class="active">Settings</a>
       </nav>
     </div>
   </header>
 
   <section class="card">
-    <h2>Tiras LED</h2>
+    <h2>LED strips</h2>
     <p class="hint">
-      Las dos tiras PWM locales de la Raspberry Pi vienen de fábrica (solo se les puede
-      cambiar el nombre). Puedes añadir tiras remotas <strong>WLED</strong> (ESP32) por
-      red: cada tira aparece como una pestaña en la vista Mímico.
+      The Raspberry Pi's two local PWM strips are built in (only their name can be
+      changed). You can add remote <strong>WLED</strong> strips (ESP32) over the
+      network: each strip appears as a tab in the Mimic view.
     </p>
     <table id="strips-table">
       <thead>
-        <tr><th>Nombre</th><th>Clase</th><th>Conexión</th><th>LEDs</th><th>Segmentos</th><th></th></tr>
+        <tr><th>Name</th><th>Kind</th><th>Connection</th><th>LEDs</th><th>Segments</th><th></th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -35,33 +35,33 @@
     <form id="strip-form">
       <input type="hidden" id="s-id">
       <div class="fields">
-        <label>Nombre <input type="text" id="s-name" required></label>
+        <label>Name <input type="text" id="s-name" required></label>
         <label id="s-host-label">Host / IP <input type="text" id="s-host" placeholder="192.168.x.x"></label>
-        <label id="s-port-label">Puerto UDP <input type="number" id="s-port" min="1" max="65535" value="21324"></label>
-        <label id="s-count-label">Nº LEDs <input type="number" id="s-count" min="1" value="60"></label>
+        <label id="s-port-label">UDP port <input type="number" id="s-port" min="1" max="65535" value="21324"></label>
+        <label id="s-count-label">LED count <input type="number" id="s-count" min="1" value="60"></label>
       </div>
       <p class="hint" id="s-pwm-note" hidden>
-        Tira PWM local: solo se puede cambiar el nombre. GPIO y nº de LEDs se ajustan
-        en <code>config.json</code>.
+        Local PWM strip: only the name can be changed. GPIO and LED count are set in
+        <code>config.json</code>.
       </p>
       <div class="actions">
-        <button type="submit" id="s-add">Añadir tira WLED</button>
-        <button type="button" id="s-update" disabled>Actualizar</button>
-        <button type="button" id="s-dismiss">Deseleccionar</button>
+        <button type="submit" id="s-add">Add WLED strip</button>
+        <button type="button" id="s-update" disabled>Update</button>
+        <button type="button" id="s-dismiss">Deselect</button>
       </div>
     </form>
   </section>
 
   <section class="card">
-    <h2>Tipos de objeto</h2>
+    <h2>Object types</h2>
     <p class="hint">
-      Los tipos definidos aquí se asignan a los elementos en la vista
-      <a href="/elements">Elementos</a>. La <strong>regla</strong> determina cómo se
-      calcula el color.
+      Types defined here are assigned to elements in the
+      <a href="/elements">Elements</a> view. The <strong>rule</strong> determines how
+      the color is computed.
     </p>
     <table id="types-table">
       <thead>
-        <tr><th>Nombre</th><th>Regla</th><th>Elementos que lo usan</th><th></th></tr>
+        <tr><th>Name</th><th>Rule</th><th>Elements using it</th><th></th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -69,20 +69,20 @@
     <form id="type-form">
       <input type="hidden" id="t-original">
       <div class="fields">
-        <label>Nombre <input type="text" id="t-name" required></label>
-        <label>Regla <select id="t-rule"></select></label>
+        <label>Name <input type="text" id="t-name" required></label>
+        <label>Rule <select id="t-rule"></select></label>
       </div>
       <p class="hint" id="rule-help"></p>
       <div class="actions">
-        <button type="submit" id="t-add">Añadir tipo</button>
-        <button type="button" id="t-update" disabled>Actualizar</button>
-        <button type="button" id="t-dismiss">Deseleccionar</button>
+        <button type="submit" id="t-add">Add type</button>
+        <button type="button" id="t-update" disabled>Update</button>
+        <button type="button" id="t-dismiss">Deselect</button>
       </div>
     </form>
   </section>
 
   <section class="card">
-    <h2>Simulador PLC <small>(escribe registros Modbus de cada elemento, solo para pruebas)</small></h2>
+    <h2>PLC simulator <small>(writes each element's Modbus registers, testing only)</small></h2>
     <div id="sim-panel" class="sim-panel"></div>
   </section>
 
